@@ -39,7 +39,7 @@ public class JWTokenValidatorImpl implements JWTokenValidator {
 
     @Override
     public String isTokenValid(String token) {
-        if (cosmosAuthService.isTokenBlacklisted(token)) {
+        if (token != null && cosmosAuthService.isTokenBlacklisted(token)) {
             return null;
         }
 
