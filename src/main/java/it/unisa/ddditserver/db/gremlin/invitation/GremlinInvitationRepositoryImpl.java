@@ -1,16 +1,16 @@
 package it.unisa.ddditserver.db.gremlin.invitation;
 
-import it.unisa.ddditserver.db.gremlin.GremlinConfig;
+import it.unisa.ddditserver.db.gremlin.JanusConfig;
 import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import it.unisa.ddditserver.subsystems.invitation.dto.InvitationDTO;
 import it.unisa.ddditserver.subsystems.invitation.exceptions.InvitationException;
 import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
-import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
-import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
+import org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
@@ -19,99 +19,68 @@ import java.util.Map;
 
 @Repository
 public class GremlinInvitationRepositoryImpl implements GremlinInvitationRepository {
-    private final GremlinConfig config;
+
+    private final JanusConfig config;
+    private Cluster cluster;
     private Client client;
 
     @Autowired
-    public GremlinInvitationRepositoryImpl(GremlinConfig config) {
+    public GremlinInvitationRepositoryImpl(JanusConfig config) {
         this.config = config;
     }
 
     @PostConstruct
     public void init() {
-        String endpoint = config.getEndpoint();
-        // Remove protocol prefix (wss://)
-        if (endpoint.startsWith("wss://")) {
-            endpoint = endpoint.substring(6);
-        }
-        // Remove port and path after colon
-        int colonIndex = endpoint.indexOf(':');
-        if (colonIndex != -1) {
-            endpoint = endpoint.substring(0, colonIndex);
-        }
-        // Remove trailing slash if present
-        if (endpoint.endsWith("/")) {
-            endpoint = endpoint.substring(0, endpoint.length() - 1);
-        }
-
-        // Build cluster connection to Gremlin server
-        Cluster cluster = Cluster.build()
-                .addContactPoint(endpoint)
-                .port(443)
-                .credentials(config.getUsername(), config.getKey())
-                .enableSsl(true)
-                .serializer(Serializers.GRAPHSON_V2D0)
+        // Build cluster connection using GraphBinary
+        this.cluster = Cluster.build()
+                .addContactPoint(config.getHost())
+                .port(config.getPort())
+                .credentials(config.getUsername(), config.getPassword())
+                .serializer(new GraphBinaryMessageSerializerV1())
                 .create();
 
         this.client = cluster.connect();
     }
 
+    @PreDestroy
+    public void close() {
+        if (client != null) client.close();
+        if (cluster != null) cluster.close();
+    }
+
     @Override
     public void saveInvitation(UserDTO fromUserDTO, UserDTO toUserDTO, RepositoryDTO repositoryDTO) {
-        String fromUsername = fromUserDTO.getUsername();
-        String toUsername = toUserDTO.getUsername();
-        String repositoryName = repositoryDTO.getRepositoryName();
-
-        String query = "g.V()" +
-                ".has('user', 'username', fromUsername)" +
+        String query = "g.V().hasLabel('user').has('username', toUsername).as('target')" +
+                ".V().hasLabel('user').has('username', fromUsername)" +
                 ".addE('HAS_INVITED')" +
-                ".property('repositoryName', repositoryName)" +
+                ".property('repositoryName', repoName)" +
                 ".property('status', 'pending')" +
-                ".to(g.V().has('user', 'username', toUsername))";
+                ".to('target')" +
+                ".iterate(); g.tx().commit();";
 
         try {
             client.submit(query, Map.of(
-                    "fromUsername", fromUsername,
-                    "toUsername", toUsername,
-                    "repositoryName", repositoryName));
+                    "fromUsername", fromUserDTO.getUsername(),
+                    "toUsername", toUserDTO.getUsername(),
+                    "repoName", repositoryDTO.getRepositoryName())).all().get();
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new InvitationException("Error saving invitation to Gremlin DB");
+            throw new InvitationException("Error saving invitation: " + e.getMessage());
         }
     }
 
     @Override
     public boolean existsByUserAndRepository(UserDTO fromUserDTO, UserDTO toUserDTO, RepositoryDTO repositoryDTO) {
-        String fromUsername = fromUserDTO.getUsername();
-        String toUsername = toUserDTO.getUsername();
-        String repositoryName = repositoryDTO.getRepositoryName();
-
-        String query = "g.V()" +
-                ".has('user', 'username', fromUsername)" +
-                ".outE('HAS_INVITED')" +
-                ".has('repositoryName', repositoryName)" +
-                ".where(__.inV().has('user', 'username', toUsername))";
-
+        String query = "g.V().hasLabel('user').has('username', fromUsername)" +
+                ".outE('HAS_INVITED').has('repositoryName', repoName)" +
+                ".where(inV().hasLabel('user').has('username', toUsername)).count()";
         try {
             List<Result> results = client.submit(query, Map.of(
-                    "fromUsername", fromUsername,
-                    "toUsername", toUsername,
-                    "repositoryName", repositoryName)).all().get();
-
-            if (results.isEmpty()) {
-                return false;
-            }
-
-            if (results.size() > 1) {
-                throw new InvitationException("More than one invitation with the same information found in Gremlin DB");
-            }
-
-            return true;
-        } catch (InvitationException e) {
-            throw e;
+                    "fromUsername", fromUserDTO.getUsername(),
+                    "toUsername", toUserDTO.getUsername(),
+                    "repoName", repositoryDTO.getRepositoryName())).all().get();
+            return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new InvitationException("Error checking for existing invitation in Gremlin DB");
+            throw new InvitationException("Error checking invitation existence: " + e.getMessage());
         }
     }
 
@@ -121,26 +90,20 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
         String toUsername = toUserDTO.getUsername();
         String repositoryName = repositoryDTO.getRepositoryName();
 
-        try {
-            String query = "g.V()" +
-                    ".hasLabel('user')" +
-                    ".has('username', fromUsername)" +
-                    ".outE('HAS_INVITED')" +
-                    ".as('e')" +
-                    ".inV().has('username', toUsername)" +
-                    ".select('e')" +
-                    ".has('repositoryName', repositoryName)" +
-                    ".property('status', 'accepted')";
+        String query = "g.V().hasLabel('user').has('username', fromUsername)" +
+                ".outE('HAS_INVITED').has('repositoryName', repositoryName)" +
+                ".as('e')" +
+                ".inV().hasLabel('user').has('username', toUsername)" +
+                ".select('e')" +
+                ".property('status', 'accepted').iterate(); g.tx().commit();";
 
+        try {
             client.submit(query, Map.of(
                     "fromUsername", fromUsername,
                     "toUsername", toUsername,
-                    "repositoryName", repositoryName));
-        } catch (InvitationException e) {
-            throw e;
+                    "repositoryName", repositoryName)).all().get();
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new InvitationException("Error updating invitation status in Gremlin DB");
+            throw new InvitationException("Error updating invitation status in JanusGraph");
         }
     }
 
@@ -150,29 +113,19 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
         String toUsername = toUserDTO.getUsername();
         String repositoryName = repositoryDTO.getRepositoryName();
 
+        String query = "g.V().hasLabel('user').has('username', fromUsername)" +
+                ".outE('HAS_INVITED').has('repositoryName', repositoryName).has('status', 'accepted')" +
+                ".inV().hasLabel('user').has('username', toUsername).count()";
+
         try {
-            String query = "g.V().hasLabel('user').has('username', fromUsername)" +
-                    ".outE('HAS_INVITED').has('repositoryName', repositoryName).has('status', 'accepted')" +
-                    ".inV().has('username', toUsername)";
+            List<Result> results = client.submit(query, Map.of(
+                    "fromUsername", fromUsername,
+                    "toUsername", toUsername,
+                    "repositoryName", repositoryName)).all().get();
 
-
-            List<Result> results = client.submit(query, Map.of("fromUsername", fromUsername,
-                            "toUsername", toUsername,
-                            "repositoryName", repositoryName)).all().get();
-
-            if (results.isEmpty()) {
-                return false;
-            }
-
-            if (results.size() > 1) {
-                throw new InvitationException("More than one invitation found in Gremlin DB");
-            }
-
-            return true;
-        } catch (InvitationException e) {
-            throw e;
+            return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
-            throw new InvitationException("Error checking invitation status in Gremlin DB");
+            throw new InvitationException("Error checking invitation status in JanusGraph");
         }
     }
 
@@ -180,37 +133,44 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
     public List<InvitationDTO> findInvitationsByUser(UserDTO userDTO) {
         String toUsername = userDTO.getUsername();
 
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', toUsername)" +
-                ".inE('HAS_INVITED')" +
-                ".has('status','pending')" +
-                ".as('e')" +
-                ".outV()" +
-                ".as('from')" +
-                ".project('fromUsername','repositoryName')" +
-                "  .by(select('from').values('username'))" +
-                "  .by(select('e').values('repositoryName'))";
+        String query = "g.V().hasLabel('user').has('username', toUsername)" +
+                ".inE('HAS_INVITED').has('status', 'pending').as('e')" +
+                ".outV().as('from')" +
+                ".project('fromUsername', 'repositoryName')" +
+                "  .by(__.values('username'))" +
+                "  .by(__.select('e').values('repositoryName'))";
 
         try {
             List<Result> results = client.submit(query, Map.of("toUsername", toUsername)).all().get();
             List<InvitationDTO> invitations = new ArrayList<>();
 
             for (Result result : results) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) result.getObject();
+                Object resultObj = result.getObject();
+                if (resultObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = (Map<String, Object>) resultObj;
 
-                String fromUsername = map.get("fromUsername").toString();
-                String repositoryName = map.get("repositoryName").toString();
+                    String fromUsername = extractValue(map.get("fromUsername"));
+                    String repositoryName = extractValue(map.get("repositoryName"));
 
-                invitations.add(new InvitationDTO(fromUsername, repositoryName));
+                    if (fromUsername != null && repositoryName != null) {
+                        invitations.add(new InvitationDTO(fromUsername, repositoryName));
+                    }
+                }
             }
 
             return invitations;
-        } catch (InvitationException e) {
-            throw e;
         } catch (Exception e) {
-            throw new RepositoryException("Error finding pending invitations in Gremlin DB");
+            e.printStackTrace(); 
+            throw new InvitationException("Error finding pending invitations in JanusGraph: " + e.getMessage());
         }
+    }
+
+    private String extractValue(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof List<?> list) {
+            return list.isEmpty() ? null : list.get(0).toString();
+        }
+        return obj.toString();
     }
 }
