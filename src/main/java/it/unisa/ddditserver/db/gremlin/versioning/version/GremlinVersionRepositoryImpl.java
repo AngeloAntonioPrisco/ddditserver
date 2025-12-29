@@ -1,35 +1,38 @@
 package it.unisa.ddditserver.db.gremlin.versioning.version;
 
-import it.unisa.ddditserver.subsystems.versioning.dto.BranchDTO;
-import it.unisa.ddditserver.subsystems.versioning.dto.version.VersionDTO;
 import it.unisa.ddditserver.db.blobstorage.versioning.BlobStorageVersionRepository;
 import it.unisa.ddditserver.db.cosmos.versioning.CosmosVersionRepository;
-import it.unisa.ddditserver.db.gremlin.GremlinConfig;
+import it.unisa.ddditserver.db.gremlin.JanusConfig;
+import it.unisa.ddditserver.subsystems.versioning.dto.BranchDTO;
+import it.unisa.ddditserver.subsystems.versioning.dto.version.VersionDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.version.VersionException;
 import it.unisa.ddditserver.subsystems.versioning.service.version.NonClosingInputStreamResource;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
-import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Client;
+import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
-import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
-import jakarta.annotation.PostConstruct;
+import org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Repository
 public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
-    private final GremlinConfig config;
+
+    private final JanusConfig config;
     private final CosmosVersionRepository cosmosService;
     private final BlobStorageVersionRepository blobStorageService;
     private Client client;
 
     @Autowired
-    public GremlinVersionRepositoryImpl(GremlinConfig config,
+    public GremlinVersionRepositoryImpl(JanusConfig config,
                                         CosmosVersionRepository cosmosService,
                                         BlobStorageVersionRepository blobStorageService) {
         this.config = config;
@@ -39,360 +42,216 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
 
     @PostConstruct
     public void init() {
-        String endpoint = config.getEndpoint();
-        // Remove protocol prefix (wss://)
-        if (endpoint.startsWith("wss://")) {
-            endpoint = endpoint.substring(6);
-        }
-        // Remove port and path after colon
-        int colonIndex = endpoint.indexOf(':');
-        if (colonIndex != -1) {
-            endpoint = endpoint.substring(0, colonIndex);
-        }
-        // Remove trailing slash if present
-        if (endpoint.endsWith("/")) {
-            endpoint = endpoint.substring(0, endpoint.length() - 1);
-        }
-
-        // Build cluster connection to Gremlin server
         Cluster cluster = Cluster.build()
-                .addContactPoint(endpoint)
-                .port(443)
-                .credentials(config.getUsername(), config.getKey())
-                .enableSsl(true)
-                .serializer(Serializers.GRAPHSON_V2D0)
+                .addContactPoint(config.getHost())
+                .port(config.getPort())
+                .credentials(config.getUsername(), config.getPassword())
+                .serializer(new GraphBinaryMessageSerializerV1())
                 .create();
 
         this.client = cluster.connect();
     }
 
+    @PreDestroy
+    public void close() {
+        if (client != null) client.close();
+    }
+
     @Override
     public void saveVersion(VersionDTO versionDTO, boolean resourceType) {
-        String repositoryName = versionDTO.getRepositoryName();
-        String resourceName = versionDTO.getResourceName();
-        String branchName = versionDTO.getBranchName();
-        String versionName = versionDTO.getVersionName();
-
         String url = "";
         String cosmosDocumentUrl = "";
 
         try {
-            if (resourceType) {
-                url = blobStorageService.saveMesh(versionDTO);
-            } else {
-                url = blobStorageService.saveMaterial(versionDTO);
-            }
-
+            url = resourceType ? blobStorageService.saveMesh(versionDTO) : blobStorageService.saveMaterial(versionDTO);
             cosmosDocumentUrl = cosmosService.saveVersion(versionDTO, url);
 
-            String query = "g.V().hasLabel('branch')" +
-                    ".has('branchName', branchName)" +
-                    ".as('branch')" +
-                    ".in('HAS_BRANCH')" +
-                    ".has('resourceName', resourceName)" +
-                    ".in('CONTAINS')" +
-                    ".has('repositoryName', repositoryName)" +
-                    ".project('branchId', 'branchProps', 'repositoryId', 'repositoryProps')" +
-                        ".by(select('branch').id())" +
-                        ".by(select('branch').valueMap())" +
-                        ".by(id())" +
-                        ".by(valueMap())";
+            String findBranchQuery = "g.V().hasLabel('repository').has('repositoryName', repoName)" +
+                    ".out('CONTAINS').hasLabel('resource').has('resourceName', resName)" +
+                    ".out('HAS_BRANCH').hasLabel('branch').has('branchName', bName)" +
+                    ".id()";
 
-            List<Result> branchResults = client.submit(query, Map.of(
-                    "branchName", branchName,
-                    "resourceName", resourceName,
-                    "repositoryName", repositoryName)).all().get();
+            List<Result> branchResults = client.submit(findBranchQuery, Map.of(
+                    "repoName", versionDTO.getRepositoryName(),
+                    "resName", versionDTO.getResourceName(),
+                    "bName", versionDTO.getBranchName())).all().get();
 
             if (branchResults.isEmpty()) {
-                // Roll back operations
-                if (resourceType) {
-                    blobStorageService.deleteMeshByUrl(url);
+                rollback(url, cosmosDocumentUrl, resourceType);
+                throw new VersionException("Branch not found for resource " + versionDTO.getResourceName());
+            }
+
+                Object branchId = branchResults.get(0).getObject();
+
+                String getChainQuery = "g.V(branchId).out('HAS_VERSION').repeat(out('HAS_NEXT_VERSION')).emit().id()";
+                List<Result> chainResults = client.submit(getChainQuery, Map.of("branchId", branchId)).all().get();
+
+                String createVersionQuery = "g.addV('version')" +
+                        ".property('versionName', vName)" +
+                        ".property('username', uName)" +
+                        ".property('pushedAt', pTime.toString())" +
+                        ".property('comment', vComment)" +
+                        ".property('tags', vTags)" +
+                        ".property('cosmosDocumentUrl', cUrl)" +
+                        ".property('resourceType', rType)" +
+                        ".id()";
+
+                Object newVersionId = client.submit(createVersionQuery, Map.of(
+                        "vName", versionDTO.getVersionName(),
+                        "uName", versionDTO.getUsername() != null ? versionDTO.getUsername() : "anonymous",
+                        "pTime", versionDTO.getPushedAt() != null ? versionDTO.getPushedAt() : LocalDateTime.now(), // Valore per la data
+                        "vComment", versionDTO.getComment() != null ? versionDTO.getComment() : "",
+                        "vTags", versionDTO.getTagsAsString(),
+                        "cUrl", cosmosDocumentUrl,
+                        "rType", resourceType ? "mesh" : "material")).one().getObject();
+
+                if (chainResults.isEmpty()) {
+                    String linkQuery = "g.V(vId).as('v').V(branchId).addE('HAS_VERSION').to('v').iterate(); g.tx().commit();";
+                    client.submit(linkQuery, Map.of("branchId", branchId, "vId", newVersionId)).all().get();
                 } else {
-                    blobStorageService.deleteMaterialByUrl(url);
+                    Object lastVersionId = chainResults.get(chainResults.size() - 1).getObject();
+                    String linkQuery = "g.V(vId).as('v').V(lastId).addE('HAS_NEXT_VERSION').to('v').iterate(); g.tx().commit();";
+                    client.submit(linkQuery, Map.of("lastId", lastVersionId, "vId", newVersionId)).all().get();
                 }
 
-                cosmosService.deleteVersionByUrl(cosmosDocumentUrl);
+            } catch (Exception e) {
+            rollback(url, cosmosDocumentUrl, resourceType);
+            throw new VersionException("Error saving new version in JanusGraph: " + e.getMessage());
+        }
+    }
 
-                throw new VersionException("No branch found for " + resourceName + " resource in " + repositoryName +" repository");
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> branchNodeMap = (Map<String, Object>) branchResults.get(0).getObject();
-            Object branchId = branchNodeMap.get("branchId");
-
-            query = "g.V(branchId)" +
-                    ".out('HAS_VERSION')" +
-                    ".union(" +
-                    "identity()," +
-                    "repeat(out('HAS_NEXT_VERSION')).emit())";
-
-            List<Result> versionResults = client.submit(query, Map.of("branchId", branchId)).all().get();
-
-            query = "g.addV('version')" +
-                    ".property('repoId', repositoryName)" +
-                    ".property('versionName', versionName)" +
-                    ".property('cosmosDocumentUrl', cosmosDocumentUrl)";
-
-            if (resourceType) {
-                query += ".property('resourceType', 'mesh')";
-            } else {
-                query += ".property('resourceType', 'material')";
-            }
-
-            Result versionResult = client.submit(query,
-                    Map.of(
-                    "repositoryName", repositoryName,
-                    "versionName", versionName,
-                    "cosmosDocumentUrl", cosmosDocumentUrl)
-            ).one();
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> versionNodeMap = (Map<String, Object>) versionResult.getObject();
-            Object versionId = versionNodeMap.get("id");
-
-            if (versionResults.isEmpty()) {
-                query = "g.V(branchId)" +
-                        ".addE('HAS_VERSION')" +
-                        ".to(g.V(versionId))";
-
-                client.submit(query, Map.of("branchId", branchId, "versionId", versionId)).all().get();
-            } else {
-                Result lastVersionResult = versionResults.get(versionResults.size() - 1);
-                @SuppressWarnings("unchecked")
-                Map<String, Object> lastVersionMap = (Map<String, Object>) lastVersionResult.getObject();
-                Object lastVersionId = lastVersionMap.get("id");
-
-                query= "g.V(lastVersionId)" +
-                        ".addE('HAS_NEXT_VERSION')" +
-                        ".to(g.V(versionId))";
-
-                client.submit(query, Map.of("lastVersionId", lastVersionId, "versionId", versionId)).all().get();
-            }
-
-        } catch (Exception e) {
-            // Roll back operations
-            if (resourceType) {
-                blobStorageService.deleteMeshByUrl(url);
-            } else {
-                blobStorageService.deleteMaterialByUrl(url);
-            }
-
-            cosmosService.deleteVersionByUrl(cosmosDocumentUrl);
-
-            throw new VersionException("Error saving new version in Gremlin DB");
+    private void rollback(String url, String cosmosUrl, boolean resourceType) {
+        if (url != null && !url.isEmpty()) {
+            if (resourceType) blobStorageService.deleteMeshByUrl(url);
+            else blobStorageService.deleteMaterialByUrl(url);
+        }
+        if (cosmosUrl != null && !cosmosUrl.isEmpty()) {
+            cosmosService.deleteVersionByUrl(cosmosUrl);
         }
     }
 
     @Override
     public boolean existsByVersion(VersionDTO versionDTO) {
-        String repositoryName = versionDTO.getRepositoryName();
-        String resourceName = versionDTO.getResourceName();
-        String branchName = versionDTO.getBranchName();
-        String versionName = versionDTO.getVersionName();
-
+        String query = getBaseVersionQuery() + ".has('versionName', vName).count()";
         try {
-            String query = "g.V()" +
-                    ".hasLabel('repository')" +
-                    ".has('repositoryName', repositoryName)" +
-                    ".out('CONTAINS')" +
-                    ".has('resourceName', resourceName)" +
-                    ".out('HAS_BRANCH')" +
-                    ".has('branchName', branchName)" +
-                    ".out('HAS_VERSION')" +
-                    ".union(identity(), repeat(out('HAS_NEXT_VERSION')).emit())" +
-                    ".has('versionName', versionName)" +
-                    ".valueMap()";
-
-            List<Result> results = client.submit(query, Map.of(
-                    "repositoryName", repositoryName,
-                    "resourceName", resourceName,
-                    "branchName", branchName,
-                    "versionName", versionName)).all().get();
-
-            if (results.isEmpty()) {
-                return false;
-            }
-
-            if (results.size() > 1) {
-                throw new VersionException("More than one version found in Gremlin DB");
-            }
-
-            return true;
-        } catch (VersionException e) {
-            throw e;
+            List<Result> results = client.submit(query, getVersionParams(versionDTO)).all().get();
+            return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error checking version existence in Gremlin DB");
+            throw new VersionException("Error checking version existence: " + e.getMessage());
         }
     }
 
     @Override
     public VersionDTO findVersionByBranch(VersionDTO versionDTO) {
-        String repositoryName = versionDTO.getRepositoryName();
-        String resourceName = versionDTO.getResourceName();
-        String branchName = versionDTO.getBranchName();
-        String versionName = versionDTO.getVersionName();
-
+        String query = getBaseVersionQuery() + ".has('versionName', vName).valueMap('cosmosDocumentUrl', 'pushedAt', 'username', 'comment', 'tags')";
         try {
-            String query = "g.V()" +
-                    ".hasLabel('repository')" +
-                    ".has('repositoryName', repositoryName)" +
-                    ".out('CONTAINS')" +
-                    ".has('resourceName', resourceName)" +
-                    ".out('HAS_BRANCH')" +
-                    ".has('branchName', branchName)" +
-                    ".out('HAS_VERSION')" +
-                    ".union(identity(), repeat(out('HAS_NEXT_VERSION')).emit())" +
-                    ".has('versionName', versionName)" +
-                    ".valueMap()";
+            List<Result> results = client.submit(query, getVersionParams(versionDTO)).all().get();
+            if (results.isEmpty()) throw new VersionException("Version not found");
 
-            List<Result> results = client.submit(query, Map.of(
-                    "repositoryName", repositoryName,
-                    "resourceName", resourceName,
-                    "branchName", branchName,
-                    "versionName", versionName)).all().get();
+            Map<Object, Object> props = results.get(0).get(Map.class);
 
-            if (results.isEmpty()) {
-                throw new VersionException("Version node not found in Gremlin DB");
+            String cosmosUrl = safeExtractString(props.get("cosmosDocumentUrl"));
+            if (cosmosUrl == null) throw new VersionException("Cosmos document URL missing in Graph");
+
+            VersionDTO dto = cosmosService.findVersionByUrl(cosmosUrl);
+
+            dto.setUsername(safeExtractString(props.get("username")));
+            dto.setComment(safeExtractString(props.get("comment")));
+
+            String dateStr = safeExtractString(props.get("pushedAt"));
+            if (dateStr != null) {
+                try {
+                    dto.setPushedAt(LocalDateTime.parse(dateStr));
+                } catch (Exception e) {
+                    dto.setPushedAt(LocalDateTime.now());
+                }
+            } else if (dto.getPushedAt() == null) {
+                dto.setPushedAt(LocalDateTime.now());
             }
-
-            if (results.size() > 1) {
-                throw new VersionException("More than one version found in Gremlin DB");
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, List<Object>> props = (Map<String, List<Object>>) results.get(0).getObject();
-            String cosmosDocumentUrl = props.get("cosmosDocumentUrl").get(0).toString();
-
-            if (cosmosDocumentUrl == null || cosmosDocumentUrl.isEmpty()) {
-                throw new VersionException("Cosmos DB document not found in the version node of Gremlin DB");
-            }
-
-            return cosmosService.findVersionByUrl(cosmosDocumentUrl);
-        } catch (VersionException e) {
-            throw e;
+            
+            return dto;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error retrieving version from Gremlin graph");
+            e.printStackTrace();
+            throw new VersionException("Error retrieving version: " + e.getMessage());
         }
+    }
+
+    private String safeExtractString(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof List<?> list && !list.isEmpty()) {
+            Object first = list.get(0);
+            return first != null ? String.valueOf(first) : null;
+        }
+        return String.valueOf(obj);
     }
 
     @Override
     public List<VersionDTO> findVersionsByBranch(BranchDTO branchDTO) {
-        String repositoryName = branchDTO.getRepositoryName();
-        String resourceName = branchDTO.getResourceName();
-        String branchName = branchDTO.getBranchName();
-
+        String query = "g.V().hasLabel('repository').has('repositoryName', repoName)" +
+                ".out('CONTAINS').hasLabel('resource').has('resourceName', resName)" +
+                ".out('HAS_BRANCH').hasLabel('branch').has('branchName', bName)" +
+                ".out('HAS_VERSION').union(identity(), repeat(out('HAS_NEXT_VERSION')).emit())" +
+                ".valueMap('versionName')";
         try {
-            String query = "g.V()" +
-                    ".hasLabel('repository')" +
-                    ".has('repositoryName', repositoryName)" +
-                    ".out('CONTAINS')" +
-                    ".has('resourceName', resourceName)" +
-                    ".out('HAS_BRANCH')" +
-                    ".has('branchName', branchName)" +
-                    ".out('HAS_VERSION')" +
-                    ".union(identity(), repeat(out('HAS_NEXT_VERSION')).emit())" +
-                    ".valueMap()";
-
             List<Result> results = client.submit(query, Map.of(
-                            "repositoryName", repositoryName,
-                            "resourceName", resourceName,
-                            "branchName", branchName)).all().get();
+                    "repoName", branchDTO.getRepositoryName(),
+                    "resName", branchDTO.getResourceName(),
+                    "bName", branchDTO.getBranchName())).all().get();
 
             List<VersionDTO> versions = new ArrayList<>();
-
-            for (Result result : results) {
+            for (Result r : results) {
                 @SuppressWarnings("unchecked")
-                Map<String, List<Object>> props = (Map<String, List<Object>>) result.getObject();
-                String versionName = props.get("versionName").get(0).toString();
-                versions.add(new VersionDTO(
-                        null, null,
-                        null, versionName,
-                        null, null,
-                        null, null,
-                        null, null));
+                Map<Object, List<Object>> props = r.get(Map.class);
+                VersionDTO dto = new VersionDTO();
+                dto.setVersionName(props.get("versionName").get(0).toString());
+                versions.add(dto);
             }
-
             return versions;
-        } catch (VersionException e) {
-            throw e;
         } catch (Exception e) {
-            throw new VersionException(e.getMessage());
+            throw new VersionException("Error finding versions: " + e.getMessage());
         }
     }
 
     @Override
     public List<Pair<NonClosingInputStreamResource, String>> getFile(VersionDTO versionDTO) {
-        String repositoryName = versionDTO.getRepositoryName();
-        String resourceName = versionDTO.getResourceName();
-        String branchName = versionDTO.getBranchName();
-        String versionName = versionDTO.getVersionName();
-
+        String query = getBaseVersionQuery() + ".has('versionName', vName).valueMap('cosmosDocumentUrl', 'resourceType')";
         try {
-            String query = "g.V()" +
-                    ".hasLabel('repository')" +
-                    ".has('repositoryName', repositoryName)" +
-                    ".out('CONTAINS')" +
-                    ".has('resourceName', resourceName)" +
-                    ".out('HAS_BRANCH')" +
-                    ".has('branchName', branchName)" +
-                    ".out('HAS_VERSION')" +
-                    ".union(identity(), repeat(out('HAS_NEXT_VERSION')).emit())" +
-                    ".has('versionName', versionName)" +
-                    ".valueMap()";
-
-            List<Result> results = client.submit(query, Map.of(
-                    "repositoryName", repositoryName,
-                    "resourceName", resourceName,
-                    "branchName", branchName,
-                    "versionName", versionName)).all().get();
-
-            if (results.isEmpty()) {
-                throw new VersionException("Version node not found in Gremlin DB");
-            }
-            if (results.size() > 1) {
-                throw new VersionException("More than one version found in Gremlin DB");
-            }
+            List<Result> results = client.submit(query, getVersionParams(versionDTO)).all().get();
+            if (results.isEmpty()) throw new VersionException("Version not found");
 
             @SuppressWarnings("unchecked")
-            Map<String, List<Object>> props = (Map<String, List<Object>>) results.get(0).getObject();
-            String cosmosDocumentUrl = props.get("cosmosDocumentUrl").get(0).toString();
-            String resourceType = props.get("resourceType").get(0).toString();
+            Map<Object, List<Object>> props = results.get(0).get(Map.class);
+            String cosmosUrl = props.get("cosmosDocumentUrl").get(0).toString();
+            String type = props.get("resourceType").get(0).toString();
 
-            if (cosmosDocumentUrl == null || cosmosDocumentUrl.isEmpty()) {
-                throw new VersionException("Cosmos DB document not found in the version node of Gremlin DB");
-            }
+            String blobUrl = cosmosService.getBlobUrlByUrl(cosmosUrl);
 
-            String blobUrl = cosmosService.getBlobUrlByUrl(cosmosDocumentUrl);
-
-            if (blobUrl == null || blobUrl.isEmpty()) {
-                throw new VersionException("BLOB URL not found in the Cosmos DB document");
-            }
-
-            List<Pair<NonClosingInputStreamResource, String>> stream;
-
-            if (resourceType.equalsIgnoreCase("mesh")) {
-                Triple<InputStream, String, String> meshData = blobStorageService.findMeshByUrl(blobUrl);
-                stream = List.of(Pair.of(
-                        new NonClosingInputStreamResource(meshData.getLeft(), meshData.getRight(), meshData.getMiddle()),
-                        meshData.getMiddle()
-                ));
+            if (type.equalsIgnoreCase("mesh")) {
+                Triple<InputStream, String, String> data = blobStorageService.findMeshByUrl(blobUrl);
+                return List.of(Pair.of(new NonClosingInputStreamResource(data.getLeft(), data.getRight(), data.getMiddle()), data.getMiddle()));
             } else {
-                List<Triple<InputStream, String, String>> textures = blobStorageService.findMaterialByUrl(blobUrl);
-                stream = textures.stream()
-                        .map(p -> Pair.of(
-                                new NonClosingInputStreamResource(p.getLeft(), p.getRight(), p.getMiddle()),
-                                p.getMiddle()
-                        ))
+                return blobStorageService.findMaterialByUrl(blobUrl).stream()
+                        .map(t -> Pair.of(new NonClosingInputStreamResource(t.getLeft(), t.getRight(), t.getMiddle()), t.getMiddle()))
                         .toList();
             }
-
-            return stream;
-        } catch (VersionException e) {
-            throw e;
         } catch (Exception e) {
-            throw new VersionException("Error retrieving mesh file");
+            throw new VersionException("Error retrieving file: " + e.getMessage());
         }
+    }
+
+    private String getBaseVersionQuery() {
+        return "g.V().hasLabel('repository').has('repositoryName', repoName)" +
+                ".out('CONTAINS').hasLabel('resource').has('resourceName', resName)" +
+                ".out('HAS_BRANCH').hasLabel('branch').has('branchName', bName)" +
+                ".out('HAS_VERSION').union(identity(), repeat(out('HAS_NEXT_VERSION')).emit())";
+    }
+
+    private Map<String, Object> getVersionParams(VersionDTO dto) {
+        return Map.of(
+                "repoName", dto.getRepositoryName(),
+                "resName", dto.getResourceName(),
+                "bName", dto.getBranchName(),
+                "vName", dto.getVersionName()
+        );
     }
 }
