@@ -1,298 +1,198 @@
 package it.unisa.ddditserver.db.blobstorage.versioning;
 
-import com.azure.core.http.rest.PagedIterable;
-import com.azure.storage.blob.*;
-import com.azure.storage.blob.models.*;
-import it.unisa.ddditserver.db.blobstorage.BlobStorageConfig;
+import io.minio.*;
+import io.minio.messages.Item;
+import it.unisa.ddditserver.db.blobstorage.MinioConfig;
 import it.unisa.ddditserver.subsystems.versioning.dto.version.VersionDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.version.VersionException;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.tuple.Triple;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
-import org.springframework.web.multipart.MultipartFile;
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
 public class BlobStorageVersionRepositoryImpl implements BlobStorageVersionRepository {
-    private final BlobStorageConfig config;
-    private BlobContainerClient meshesContainerClient;
-    private BlobContainerClient materialsContainerClient;
 
     @Autowired
-    public BlobStorageVersionRepositoryImpl(BlobStorageConfig config) {
+    private final MinioConfig config;
+    private MinioClient minioClient;
+
+    @Autowired
+    public BlobStorageVersionRepositoryImpl(MinioConfig config) {
         this.config = config;
     }
 
     @PostConstruct
     public void init() {
-        // Build client connection to BLOB storage server
-        BlobServiceClient blobServiceClient = new BlobServiceClientBuilder()
-                .connectionString(config.getConnectionString())
-                .buildClient();
+        try {
+            minioClient = MinioClient.builder()
+                    .endpoint(config.getEndpoint())
+                    .credentials(config.getUsername(), config.getPassword())
+                    .build();
 
-        this.meshesContainerClient = blobServiceClient.getBlobContainerClient(config.getMeshesContainer());
-        this.materialsContainerClient = blobServiceClient.getBlobContainerClient(config.getMaterialsContainer());
+            // Bucket creation if not existing
+            if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(config.getMeshesBucket()).build())) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(config.getMeshesBucket()).build());
+            }
+            if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(config.getMaterialsBucket()).build())) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(config.getMaterialsBucket()).build());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Errore durante la creazione dei bucket MinIO", e);
+        }
     }
 
     @Override
     public String saveMesh(VersionDTO versionDTO) {
-        String repoFolder = versionDTO.getRepositoryName();
-        String branchFolder = versionDTO.getBranchName();
-        String resourceFolder = versionDTO.getResourceName();
-        String versionName = versionDTO.getVersionName();
-        MultipartFile mesh = versionDTO.getMesh();
-
-        // BLOB path: repoName/resourceName/branchName/versionName/fileName
-        String blobPath = repoFolder + "/" + resourceFolder + "/" + branchFolder + "/" + versionName + "/" + mesh.getOriginalFilename();
-
-        try {
-            BlobClient blobClient = meshesContainerClient.getBlobClient(blobPath);
-
-            try (InputStream dataStream = mesh.getInputStream()) {
-                blobClient.upload(dataStream, mesh.getSize(), true);
-            }
-
-            BlobHttpHeaders headers = new BlobHttpHeaders()
-                    .setContentType(mesh.getContentType() != null ? mesh.getContentType() : "application/octet-stream");
-            blobClient.setHttpHeaders(headers);
-
-            return blobClient.getBlobUrl();
-        } catch (BlobStorageException | IOException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error during mesh saving in BLOB storage for " + mesh.getOriginalFilename() + " file");
+        String objectName = versionDTO.getRepositoryName() + "/" +
+                versionDTO.getResourceName() + "/" +
+                versionDTO.getBranchName() + "/" +
+                versionDTO.getVersionName() + "/" +
+                versionDTO.getMesh().getOriginalFilename();
+        try (InputStream is = versionDTO.getMesh().getInputStream()) {
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(config.getMeshesBucket())
+                    .object(objectName)
+                    .stream(is, versionDTO.getMesh().getSize(), -1)
+                    .contentType(versionDTO.getMesh().getContentType())
+                    .build());
+        } catch (Exception e) {
+            throw new VersionException("Errore durante il salvataggio del mesh su MinIO");
         }
+        return config.getEndpoint() + "/" + config.getMeshesBucket() + "/" + objectName;
     }
 
     @Override
     public String saveMaterial(VersionDTO versionDTO) {
-        String repoFolder = versionDTO.getRepositoryName();
-        String branchFolder = versionDTO.getBranchName();
-        String resourceFolder = versionDTO.getResourceName();
-        String versionName = versionDTO.getVersionName();
-        List<MultipartFile> material = versionDTO.getMaterial();
-
-        for (MultipartFile texture : material) {
-            // BLOB path: repoName/resourceName/branchName/versionName/textureFileName
-            String blobPath = repoFolder + "/" + resourceFolder + "/" + branchFolder + "/" + versionName + "/" + texture.getOriginalFilename();
-
-            BlobClient blobClient = materialsContainerClient.getBlobClient(blobPath);
-
-            try {
-                InputStream dataStream = texture.getInputStream();
-                blobClient.upload(dataStream, texture.getSize(), false);
-
-                BlobHttpHeaders headers = new BlobHttpHeaders()
-                        .setContentType(texture.getContentType() != null ? texture.getContentType() : "application/octet-stream");
-                blobClient.setHttpHeaders(headers);
-            } catch (BlobStorageException | IOException e) {
-                // If it is necessary use a RuntimeException for more detailed debug
-                throw new VersionException("Error during material saving in BLOB storage for " + texture.getOriginalFilename() + " file");
-            }
-        }
-
-        BlobClient folderClient;
+        String basePath = versionDTO.getRepositoryName() + "/" +
+                versionDTO.getResourceName() + "/" +
+                versionDTO.getBranchName() + "/" +
+                versionDTO.getVersionName() + "/";
 
         try {
-            String folderBlobPath = repoFolder + "/"  + resourceFolder + "/" + branchFolder + "/" + versionName;
-            folderClient = materialsContainerClient.getBlobClient(folderBlobPath);
-        } catch (BlobStorageException e) {
-            throw new VersionException("Error during material saving in BLOB storage");
+            for (var texture : versionDTO.getMaterial()) {
+                String objectName = basePath + texture.getOriginalFilename();
+                try (InputStream is = texture.getInputStream()) {
+                    minioClient.putObject(PutObjectArgs.builder()
+                            .bucket(config.getMaterialsBucket())
+                            .object(objectName)
+                            .stream(is, texture.getSize(), -1)
+                            .contentType(texture.getContentType())
+                            .build());
+                }
+            }
+        } catch (Exception e) {
+            throw new VersionException("Errore durante il salvataggio dei materiali su MinIO");
         }
 
-        return folderClient.getBlobUrl();
+        return config.getEndpoint() + "/" + config.getMaterialsBucket() + "/" + basePath;
     }
 
     @Override
     public boolean existsMeshByUrl(String meshUrl) {
-        if (meshUrl == null || meshUrl.isEmpty()) {
-            throw new VersionException("Mesh URL can't be null or empty");
-        }
-
-        BlobClient blobClient;
-
+        if (meshUrl == null || meshUrl.isEmpty()) return false;
+        String objectName = meshUrl.substring(meshUrl.lastIndexOf(config.getMeshesBucket() + "/") + (config.getMeshesBucket() + "/").length());
         try {
-            meshUrl = URLDecoder.decode(meshUrl, StandardCharsets.UTF_8);
-
-            String containerUrl = meshesContainerClient.getBlobContainerUrl() + "/";
-            String blobPath = meshUrl.startsWith(containerUrl) ? meshUrl.substring(containerUrl.length()) : meshUrl;
-
-            blobClient = meshesContainerClient.getBlobClient(blobPath);
-        } catch (BlobStorageException e) {
-            throw new VersionException("Error during checking existence of mesh URL in BLOB storage");
+            return minioClient.statObject(StatObjectArgs.builder()
+                    .bucket(config.getMeshesBucket())
+                    .object(objectName)
+                    .build()) != null;
+        } catch (Exception e) {
+            return false;
         }
-
-        return blobClient.exists();
     }
 
     @Override
     public boolean existsMaterialByUrl(String materialFolderUrl) {
-        if (materialFolderUrl == null || materialFolderUrl.isEmpty()) {
-            throw new VersionException("Material URL can't be null or empty");
-        }
-
-        PagedIterable<BlobItem> blobs;
-
+        if (materialFolderUrl == null || materialFolderUrl.isEmpty()) return false;
+        String prefix = materialFolderUrl.substring(materialFolderUrl.lastIndexOf(config.getMaterialsBucket() + "/") + (config.getMaterialsBucket() + "/").length());
         try {
-            materialFolderUrl = URLDecoder.decode(materialFolderUrl, StandardCharsets.UTF_8);
-
-            String containerUrl = materialsContainerClient.getBlobContainerUrl() + "/";
-            String relativePath = materialFolderUrl.startsWith(containerUrl)
-                    ? materialFolderUrl.substring(containerUrl.length())
-                    : materialFolderUrl;
-
-            if (!relativePath.endsWith("/")) {
-                relativePath += "/";
-            }
-
-            ListBlobsOptions options = new ListBlobsOptions().setPrefix(relativePath);
-            blobs = materialsContainerClient.listBlobsByHierarchy("/", options, Duration.ofSeconds(30));
-        } catch (BlobStorageException e) {
-            throw new VersionException("Error during checking existence of material URL in BLOB storage");
+            Iterable<Result<Item>> objects = minioClient.listObjects(ListObjectsArgs.builder()
+                    .bucket(config.getMaterialsBucket())
+                    .prefix(prefix)
+                    .recursive(true)
+                    .build());
+            return objects.iterator().hasNext();
+        } catch (Exception e) {
+            return false;
         }
-
-        return blobs.iterator().hasNext();
     }
 
     @Override
     public Triple<InputStream, String, String> findMeshByUrl(String meshUrl) {
-        if (meshUrl == null || meshUrl.isEmpty()) {
-            throw new VersionException("Mesh URL can't be null or empty");
-        } else {
-            existsMeshByUrl(meshUrl);
-        }
-
-        InputStream inputStream;
-        String contentType;
-        String meshName;
-
+        String objectName = meshUrl.substring(meshUrl.lastIndexOf(config.getMeshesBucket() + "/") + (config.getMeshesBucket() + "/").length());
         try {
-            meshUrl = URLDecoder.decode(meshUrl, StandardCharsets.UTF_8);
-
-            String containerUrl = meshesContainerClient.getBlobContainerUrl() + "/";
-            String relativePath = meshUrl.startsWith(containerUrl)
-                    ? meshUrl.substring(containerUrl.length())
-                    : meshUrl;
-
-            BlobClient blobClient = meshesContainerClient.getBlobClient(relativePath);
-
-            inputStream = blobClient.openInputStream();
-
-            String path = blobClient.getBlobName();
-            meshName = path.substring(path.lastIndexOf("/") + 1);
-
-            contentType = blobClient.getProperties().getContentType();
-            if (contentType == null || contentType.isEmpty()) {
-                contentType = "application/octet-stream";
-            }
-        } catch (BlobStorageException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error during mesh retrieving in BLOB storage");
+            InputStream is = minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(config.getMeshesBucket())
+                    .object(objectName)
+                    .build());
+            String contentType = "application/octet-stream"; // MinIO non memorizza sempre il content type
+            String fileName = objectName.substring(objectName.lastIndexOf("/") + 1);
+            return Triple.of(is, contentType, fileName);
+        } catch (Exception e) {
+            throw new VersionException("Errore durante il recupero del mesh da MinIO");
         }
-
-        return Triple.of(inputStream, contentType, meshName);
     }
 
     @Override
     public List<Triple<InputStream, String, String>> findMaterialByUrl(String materialFolderUrl) {
-        if (materialFolderUrl == null || materialFolderUrl.isEmpty()) {
-            throw new VersionException("Material URL can't be null or empty");
-        } else {
-            existsMaterialByUrl(materialFolderUrl);
-        }
-
+        String prefix = materialFolderUrl.substring(materialFolderUrl.lastIndexOf(config.getMaterialsBucket() + "/") + (config.getMaterialsBucket() + "/").length());
+        List<Triple<InputStream, String, String>> result = new ArrayList<>();
         try {
-            materialFolderUrl = URLDecoder.decode(materialFolderUrl, StandardCharsets.UTF_8);
-
-            String containerUrl = materialsContainerClient.getBlobContainerUrl() + "/";
-            String relativePath = materialFolderUrl.startsWith(containerUrl)
-                    ? materialFolderUrl.substring(containerUrl.length())
-                    : materialFolderUrl;
-
-            if (!relativePath.endsWith("/")) {
-                relativePath += "/";
+            Iterable<Result<Item>> objects = minioClient.listObjects(ListObjectsArgs.builder()
+                    .bucket(config.getMaterialsBucket())
+                    .prefix(prefix)
+                    .recursive(true)
+                    .build());
+            for (Result<Item> r : objects) {
+                Item item = r.get();
+                InputStream is = minioClient.getObject(GetObjectArgs.builder()
+                        .bucket(config.getMaterialsBucket())
+                        .object(item.objectName())
+                        .build());
+                String fileName = item.objectName().substring(item.objectName().lastIndexOf("/") + 1);
+                result.add(Triple.of(is, "application/octet-stream", fileName));
             }
-
-            return materialsContainerClient.listBlobsByHierarchy(relativePath).stream()
-                    .map(blobItem -> {
-                        BlobClient client = materialsContainerClient.getBlobClient(blobItem.getName());
-                        String path = client.getBlobName();
-                        String textureName = path.substring(path.lastIndexOf("/") + 1);
-                        InputStream inputStream = client.openInputStream();
-                        String contentType = client.getProperties().getContentType();
-                        if (contentType == null || contentType.isEmpty()) {
-                            contentType = "application/octet-stream";
-                        }
-                        return Triple.of(inputStream, contentType, textureName);
-                    })
-                    .toList();
-        } catch (BlobStorageException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error during material retrieving in BLOB storage");
+        } catch (Exception e) {
+            throw new VersionException("Errore durante il recupero dei materiali da MinIO");
         }
+        return result;
     }
 
     @Override
     public void deleteMeshByUrl(String meshUrl) {
-        if (meshUrl == null || meshUrl.isEmpty()) {
-            throw new VersionException("Mesh URL can't be null or empty");
-        }
-
+        String objectName = meshUrl.substring(meshUrl.lastIndexOf(config.getMeshesBucket() + "/") + (config.getMeshesBucket() + "/").length());
         try {
-            meshUrl = URLDecoder.decode(meshUrl, StandardCharsets.UTF_8);
-
-            String containerUrl = meshesContainerClient.getBlobContainerUrl() + "/";
-            String relativePath = meshUrl.startsWith(containerUrl)
-                    ? meshUrl.substring(containerUrl.length())
-                    : meshUrl;
-
-            BlobClient blobClient = meshesContainerClient.getBlobClient(relativePath);
-
-            if (blobClient.exists()) {
-                blobClient.delete();
-            } else {
-                // If it is necessary use a RuntimeException for more detailed debug
-                throw new VersionException("Mesh not found in BLOB storage during deletion");
-            }
-        } catch (BlobStorageException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error deleting mesh in BLOB storage");
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(config.getMeshesBucket())
+                    .object(objectName)
+                    .build());
+        } catch (Exception e) {
+            throw new VersionException("Errore durante la cancellazione del mesh da MinIO");
         }
     }
 
     @Override
     public void deleteMaterialByUrl(String materialFolderUrl) {
-        if (materialFolderUrl == null || materialFolderUrl.isEmpty()) {
-            throw new VersionException("Material URL can't be null or empty");
-        }
-
+        String prefix = materialFolderUrl.substring(materialFolderUrl.lastIndexOf(config.getMaterialsBucket() + "/") + (config.getMaterialsBucket() + "/").length());
         try {
-            materialFolderUrl = URLDecoder.decode(materialFolderUrl, StandardCharsets.UTF_8);
-
-            String containerUrl = materialsContainerClient.getBlobContainerUrl() + "/";
-            String relativePath = materialFolderUrl.startsWith(containerUrl)
-                    ? materialFolderUrl.substring(containerUrl.length())
-                    : materialFolderUrl;
-
-            if (!relativePath.endsWith("/")) {
-                relativePath += "/";
+            Iterable<Result<Item>> objects = minioClient.listObjects(ListObjectsArgs.builder()
+                    .bucket(config.getMaterialsBucket())
+                    .prefix(prefix)
+                    .recursive(true)
+                    .build());
+            for (Result<Item> r : objects) {
+                Item item = r.get();
+                minioClient.removeObject(RemoveObjectArgs.builder()
+                        .bucket(config.getMaterialsBucket())
+                        .object(item.objectName())
+                        .build());
             }
-
-            for (BlobItem blobItem : materialsContainerClient.listBlobsByHierarchy(relativePath)) {
-                if (blobItem.isPrefix()) {
-                    continue;
-                }
-                BlobClient blobClient = materialsContainerClient.getBlobClient(blobItem.getName());
-                blobClient.delete();
-            }
-        } catch (BlobStorageException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error deleting material in BLOB storage");
+        } catch (Exception e) {
+            throw new VersionException("Errore durante la cancellazione dei materiali da MinIO");
         }
     }
 }
