@@ -48,7 +48,6 @@ public class VersionServiceImpl implements VersionService {
         }
     }
 
-    // The probability of a collision with 1.000.000 versions for a single resource, so with the same base, is ca. 6.37%
     private String generateVersionName(VersionDTO versionDTO) {
         String base = versionDTO.getVersionName()
                 .replaceAll("[^a-zA-Z0-9]", "")
@@ -58,7 +57,10 @@ public class VersionServiceImpl implements VersionService {
         String uuidPart = UUID.randomUUID().toString().replaceAll("-", "");
         uuidPart = uuidPart.substring(0, 4);
 
-        return base + uuidPart;
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yy-MM-HH:mm");
+        String timestamp = java.time.LocalDateTime.now().format(formatter);
+
+        return timestamp + "-" + base + uuidPart;
     }
 
     @Override
@@ -83,7 +85,8 @@ public class VersionServiceImpl implements VersionService {
         else {
             resourceType = true;
             mesh =  versionDTO.getMesh();
-            tags = tagClassificationService.classify(versionDTO);
+            // ATTENTION: At the moment this is a placeholder, no classification is performed
+            tags = new ArrayList<>();
         }
 
         if (retrievedUsername == null) {
@@ -255,18 +258,30 @@ public class VersionServiceImpl implements VersionService {
         try {
             versionDTO = gremlinVersionRepository.findVersionByBranch(versionDTO);
         } catch (Exception e) {
-            throw new VersionException(e.getMessage());
+
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Metadata not found");
+            return new ResponseEntity(errorResponse, HttpStatus.NOT_FOUND);
         }
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Version information retrieved successfully");
         response.put("versionName", versionDTO.getVersionName());
-        response.put("username", versionDTO.getUsername());
-        response.put("pushedAt", versionDTO.getPushedAt());
-        response.put("comment", versionDTO.getComment());
-        response.put("tags", versionDTO.getTagsAsString());
+        response.put("username", versionDTO.getUsername() != null ? versionDTO.getUsername() : "anonymous");
 
-        return  ResponseEntity.ok(response);
+        // To enure ISO date
+        String isoDate;
+        if (versionDTO.getPushedAt() != null) {
+            isoDate = versionDTO.getPushedAt().toString();
+        } else {
+            isoDate = java.time.LocalDateTime.now().toString();
+        }
+        response.put("pushedAt", isoDate);
+
+        response.put("comment", versionDTO.getComment() != null ? versionDTO.getComment() : "");
+        response.put("tags", versionDTO.getTagsAsString() != null ? versionDTO.getTagsAsString() : "");
+
+        return ResponseEntity.ok(response);
     }
 }
 
