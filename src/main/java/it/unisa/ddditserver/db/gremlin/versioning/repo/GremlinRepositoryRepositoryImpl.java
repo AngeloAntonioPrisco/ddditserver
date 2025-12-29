@@ -1,111 +1,79 @@
 package it.unisa.ddditserver.db.gremlin.versioning.repo;
 
+import it.unisa.ddditserver.db.gremlin.JanusConfig;
 import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
-import it.unisa.ddditserver.db.gremlin.GremlinConfig;
 import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.version.VersionException;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
-import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
+import org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Repository
 public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryRepository {
-    private final GremlinConfig config;
+
+    private final JanusConfig config;
+    private Cluster cluster;
     private Client client;
 
     @Autowired
-    public GremlinRepositoryRepositoryImpl(GremlinConfig config) {
+    public GremlinRepositoryRepositoryImpl(JanusConfig config) {
         this.config = config;
     }
 
     @PostConstruct
     public void init() {
-        String endpoint = config.getEndpoint();
-        // Remove protocol prefix (wss://)
-        if (endpoint.startsWith("wss://")) {
-            endpoint = endpoint.substring(6);
-        }
-        // Remove port and path after colon
-        int colonIndex = endpoint.indexOf(':');
-        if (colonIndex != -1) {
-            endpoint = endpoint.substring(0, colonIndex);
-        }
-        // Remove trailing slash if present
-        if (endpoint.endsWith("/")) {
-            endpoint = endpoint.substring(0, endpoint.length() - 1);
-        }
-
-        // Build cluster connection to Gremlin server
-        Cluster cluster = Cluster.build()
-                .addContactPoint(endpoint)
-                .port(443)
-                .credentials(config.getUsername(), config.getKey())
-                .enableSsl(true)
-                .serializer(Serializers.GRAPHSON_V2D0)
+        this.cluster = Cluster.build()
+                .addContactPoint(config.getHost())
+                .port(config.getPort())
+                .credentials(config.getUsername(), config.getPassword())
+                .serializer(new GraphBinaryMessageSerializerV1())
                 .create();
 
         this.client = cluster.connect();
     }
 
+    @PreDestroy
+    public void close() {
+        if (client != null) client.close();
+        if (cluster != null) cluster.close();
+    }
+
     @Override
     public void saveRepository(RepositoryDTO repositoryDTO, UserDTO userDTO) {
-        String username = userDTO.getUsername();
-        String repositoryName = repositoryDTO.getRepositoryName();
-
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', username)" +
-                ".as('u')" +
+        String query = "g.V().hasLabel('user').has('username', uName).as('u')" +
                 ".addV('repository')" +
-                ".property('repoId', repositoryName)" +
-                ".property('repositoryName', repositoryName)" +
+                ".property('repositoryName', rName)" +
                 ".as('r')" +
-                ".addE('OWNS')" +
-                ".from('u')" +
-                ".to('r')";
-
+                ".addE('OWNS').from('u').to('r')" +
+                ".iterate(); g.tx().commit();";
         try {
             client.submit(query, Map.of(
-                    "username", username,
-                    "repositoryName", repositoryName));
+                    "uName", userDTO.getUsername(),
+                    "rName", repositoryDTO.getRepositoryName())).all().get();
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error during repository creation in Gremlin DB");
+            throw new RepositoryException("Error saving repository: " + e.getMessage());
         }
     }
 
     @Override
     public boolean existsByRepository(RepositoryDTO repositoryDTO) {
-        String repositoryName = repositoryDTO.getRepositoryName();
-
-        String query = "g.V()" +
-                ".hasLabel('repository')" +
-                ".has('repositoryName', repositoryName)";
+        String query = "g.V().hasLabel('repository').has('repositoryName', rName).count()";
         try {
-            List<Result> results = client.submit(query, Map.of("repositoryName", repositoryName)).all().get();
-
-            if (results.isEmpty()) {
-                return false;
-            }
-
-            if (results.size() > 1) {
-                throw new VersionException("More than one repository found in Gremlin DB");
-            }
-
-            return true;
-        } catch (RepositoryException e) {
-            throw e;
+            List<Result> results = client.submit(query, Map.of("rName", repositoryDTO.getRepositoryName())).all().get();
+            return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error checking repository existence in Gremlin DB");
+            throw new RepositoryException("Error checking repository existence");
         }
     }
 
@@ -113,12 +81,10 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
     public List<UserDTO> findContributorsByRepository(RepositoryDTO repositoryDTO) {
         String repositoryName = repositoryDTO.getRepositoryName();
 
-        String query = "g.V()" +
-                ".hasLabel('repository')" +
-                ".has('repositoryName', repositoryName)" +
-                ".union(in('CONTRIBUTES_TO'), in('OWNS'))" +
-                ".dedup()" +
-                ".valueMap()";
+        String query = "g.V().hasLabel('repository').has('repositoryName', repositoryName)" +
+                ".union(__.in('CONTRIBUTES_TO'), __.in('OWNS'))" +
+                ".dedup().valueMap('username')";
+
         try {
             List<Result> results = client.submit(query, Map.of("repositoryName", repositoryName)).all().get();
             List<UserDTO> contributors = new ArrayList<>();
@@ -129,13 +95,9 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                 String username = props.get("username").get(0).toString();
                 contributors.add(new UserDTO(username, null));
             }
-
             return contributors;
-        } catch (RepositoryException e) {
-            throw e;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error finding contributors in Gremlin DB");
+            throw new RepositoryException("Error finding contributors in JanusGraph");
         }
     }
 
@@ -144,29 +106,14 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
         String username = userDTO.getUsername();
         String repositoryName = repositoryDTO.getRepositoryName();
 
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', username)" +
-                ".out('CONTRIBUTES_TO')" +
-                ".hasLabel('repository')" +
-                ".has('repositoryName', repositoryName)";
+        String query = "g.V().hasLabel('user').has('username', username)" +
+                ".out('CONTRIBUTES_TO').hasLabel('repository').has('repositoryName', repositoryName).count()";
+
         try {
             List<Result> results = client.submit(query, Map.of("username", username, "repositoryName", repositoryName)).all().get();
-
-            if (results.isEmpty()) {
-                return false;
-            }
-
-            if (results.size() > 1) {
-                throw new VersionException("More than one contributor with the same username found in Gremlin DB");
-            }
-
-            return true;
-        } catch (RepositoryException e) {
-            throw e;
+            return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error checking contributor status in Gremlin DB");
+            throw new RepositoryException("Error checking contributor status in JanusGraph");
         }
     }
 
@@ -175,30 +122,14 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
         String username = userDTO.getUsername();
         String repositoryName = repositoryDTO.getRepositoryName();
 
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', username)" +
-                ".out('OWNS')" +
-                ".hasLabel('repository')" +
-                ".has('repositoryName', repositoryName)";
+        String query = "g.V().hasLabel('user').has('username', username)" +
+                ".out('OWNS').hasLabel('repository').has('repositoryName', repositoryName).count()";
 
         try {
             List<Result> results = client.submit(query, Map.of("username", username, "repositoryName", repositoryName)).all().get();
-
-            if (results.isEmpty()) {
-                return false;
-            }
-
-            if (results.size() > 1) {
-                throw new VersionException("More than one owner found in Gremlin DB");
-            }
-
-            return true;
-        } catch (RepositoryException e) {
-            throw e;
+            return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error checking owner status in Gremlin DB");
+            throw new RepositoryException("Error checking owner status in JanusGraph");
         }
     }
 
@@ -207,90 +138,55 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
         String username = userDTO.getUsername();
         String repositoryName = repositoryDTO.getRepositoryName();
 
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', username)" +
-                ".as('u')" +
-                ".V()" +
-                ".hasLabel('repository')" +
-                ".has('repositoryName', repositoryName)" +
-                ".as('r')" +
+        String query = "g.V().hasLabel('user').has('username', username).as('u')" +
+                ".V().hasLabel('repository').has('repositoryName', repositoryName).as('r')" +
                 ".coalesce(" +
-                    "__.V()" +
-                    ".hasLabel('user')" +
-                    ".has('username', username)" +
-                    ".outE('CONTRIBUTES_TO')" +
-                    ".where(inV().has('repositoryName', repositoryName))," +
-                    "__.addE('CONTRIBUTES_TO')" +
-                    ".from('u')" +
-                    ".to('r')" +
-                ")";
+                "  __.inE('CONTRIBUTES_TO').where(__.outV().as('u'))," +
+                "  __.addE('CONTRIBUTES_TO').from('u').to('r')" +
+                ").iterate(); g.tx().commit();";
 
         try {
-            client.submit(query, Map.of("username", username, "repositoryName", repositoryName));
-        } catch (RepositoryException e) {
-            throw e;
+            client.submit(query, Map.of("username", username, "repositoryName", repositoryName)).all().get();
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error adding contributor in Gremlin DB");
+            throw new RepositoryException("Error adding contributor in JanusGraph");
         }
     }
 
     @Override
     public List<RepositoryDTO> findOwnedRepositoriesByUser(UserDTO userDTO) {
         String username = userDTO.getUsername();
+        String query = "g.V().hasLabel('user').has('username', username).out('OWNS').valueMap('repositoryName')";
 
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', username)" +
-                ".out('OWNS')" +
-                ".valueMap()";
         try {
             List<Result> results = client.submit(query, Map.of("username", username)).all().get();
             List<RepositoryDTO> repositories = new ArrayList<>();
-
             for (Result result : results) {
                 @SuppressWarnings("unchecked")
                 Map<String, List<Object>> props = (Map<String, List<Object>>) result.getObject();
-                String repositoryName = props.get("repositoryName").get(0).toString();
-                repositories.add(new RepositoryDTO(repositoryName));
+                repositories.add(new RepositoryDTO(props.get("repositoryName").get(0).toString()));
             }
-
             return repositories;
-        } catch (RepositoryException e) {
-            throw e;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error finding owned repositories in Gremlin DB");
+            throw new RepositoryException("Error finding owned repositories in JanusGraph");
         }
     }
 
     @Override
     public List<RepositoryDTO> findContributedRepositoriesByUser(UserDTO userDTO) {
         String username = userDTO.getUsername();
+        String query = "g.V().hasLabel('user').has('username', username).out('CONTRIBUTES_TO').valueMap('repositoryName')";
 
-        String query = "g.V()" +
-                ".hasLabel('user')" +
-                ".has('username', username)" +
-                ".out('CONTRIBUTES_TO')" +
-                ".valueMap()";
         try {
             List<Result> results = client.submit(query, Map.of("username", username)).all().get();
             List<RepositoryDTO> repositories = new ArrayList<>();
-
             for (Result result : results) {
                 @SuppressWarnings("unchecked")
                 Map<String, List<Object>> props = (Map<String, List<Object>>) result.getObject();
-                String repositoryName = props.get("repositoryName").get(0).toString();
-                repositories.add(new RepositoryDTO(repositoryName));
+                repositories.add(new RepositoryDTO(props.get("repositoryName").get(0).toString()));
             }
-
             return repositories;
-        } catch (RepositoryException e) {
-            throw e;
         } catch (Exception e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new RepositoryException("Error finding contributed repositories in Gremlin DB");
+            throw new RepositoryException("Error finding contributed repositories in JanusGraph");
         }
     }
 }
