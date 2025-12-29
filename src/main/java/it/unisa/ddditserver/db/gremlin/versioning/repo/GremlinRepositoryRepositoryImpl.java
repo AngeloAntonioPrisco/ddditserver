@@ -37,7 +37,11 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                 .addContactPoint(config.getHost())
                 .port(config.getPort())
                 .credentials(config.getUsername(), config.getPassword())
-                .serializer(new GraphBinaryMessageSerializerV1())
+                .serializer(new GraphBinaryMessageSerializerV1(
+                        org.apache.tinkerpop.gremlin.structure.io.binary.TypeSerializerRegistry.build()
+                                .addRegistry(org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry.instance())
+                                .create()
+                ))
                 .create();
 
         this.client = cluster.connect();

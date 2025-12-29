@@ -17,4 +17,9 @@ scriptEngines: {
   }
 }
 serializers:
-  - { className: org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1, config: { serializeResultToString: false }}
+  - { className: org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1, 
+      config: { 
+        serializeResultToString: false,
+        ioRegistries: [org.janusgraph.graphdb.tinkerpop.JanusGraphIoRegistry]
+      } 
+    }
