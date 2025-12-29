@@ -1,147 +1,112 @@
 package it.unisa.ddditserver.db.cosmos.versioning;
 
-import com.azure.cosmos.*;
-import com.azure.cosmos.models.*;
-import it.unisa.ddditserver.db.cosmos.CosmosConfig;
-import it.unisa.ddditserver.subsystems.versioning.dto.version.CosmosVersionDTO;
+import com.mongodb.client.*;
+import com.mongodb.client.model.Filters;
+import it.unisa.ddditserver.db.cosmos.MongoConfig;
 import it.unisa.ddditserver.subsystems.versioning.dto.version.VersionDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.version.VersionException;
 import jakarta.annotation.PostConstruct;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Arrays;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
 public class CosmosVersionRepositoryImpl implements CosmosVersionRepository {
-    private final CosmosConfig config;
-    private CosmosContainer container;
+
+    private final MongoConfig config;
+    private MongoClient mongoClient;
+    private MongoCollection<Document> versionsCollection;
 
     @Autowired
-    public CosmosVersionRepositoryImpl(CosmosConfig config) {
+    public CosmosVersionRepositoryImpl(MongoConfig config) {
         this.config = config;
-    }
-
-    private String getPartitionKey(String query) {
-        // If it is necessary use a RuntimeException for more detailed debug
-        return Arrays.stream(query.split("&"))
-                .filter(param -> param.startsWith("partitionKey="))
-                .map(param -> param.split("=")[1])
-                .findFirst()
-                .orElseThrow(() -> new VersionException("PartitionKey non found in CosmosDB document URL"));
     }
 
     @PostConstruct
     public void init() {
-        // Build client connection to Cosmos server
-        CosmosClient cosmosClient = new CosmosClientBuilder()
-                .endpoint(config.getEndpoint())
-                .key(config.getKey())
-                .buildClient();
-
-        // Get database reference
-        CosmosDatabase database = cosmosClient.getDatabase(config.getDatabaseName());
-
-        // Get container reference for versions metadata
-        this.container = database.getContainer(config.getVersionsContainerName());
+        mongoClient = MongoClients.create(config.getConnectionString());
+        MongoDatabase database = mongoClient.getDatabase(config.getDatabaseName());
+        versionsCollection = database.getCollection(config.getVersionsCollection());
     }
 
     @Override
     public String saveVersion(VersionDTO versionDTO, String blobUrl) {
-        CosmosVersionDTO cosmosVersion = new CosmosVersionDTO(
-                UUID.randomUUID().toString(),
-                versionDTO.getResourceName(),
-                versionDTO.getResourceName(),
-                versionDTO.getVersionName(),
-                versionDTO.getUsername(),
-                versionDTO.getPushedAt(),
-                versionDTO.getComment(),
-                versionDTO.getTags(),
-                blobUrl
+        Document doc = new Document("_id", UUID.randomUUID().toString())
+                .append("resourceName", versionDTO.getResourceName())
+                .append("branchName", versionDTO.getBranchName())
+                .append("versionName", versionDTO.getVersionName())
+                .append("username", versionDTO.getUsername())
+                .append("pushedAt", versionDTO.getPushedAt())
+                .append("comment", versionDTO.getComment())
+                .append("tags", versionDTO.getTags())
+                .append("blobUrl", blobUrl);
+
+        versionsCollection.insertOne(doc);
+
+        return String.format(
+                "mongodb://%s/%s/%s/%s",
+                config.getHost(),
+                config.getDatabaseName(),
+                config.getVersionsCollection(),
+                doc.getString("_id")
         );
-
-        try {
-            container.createItem(cosmosVersion, new PartitionKey(cosmosVersion.getResourceName()), new CosmosItemRequestOptions());
-
-            // Should be added a new env variable with CosmosDB name and an env variable with username both on GitHub and Azure VM
-            return String.format(
-                    "https://%s.documents.azure.com/dbs/%s/colls/%s/docs/%s?partitionKey=%s",
-                    "se4ai-aap-documents",
-                    "metadata",
-                    "versions",
-                    cosmosVersion.getId(),
-                    cosmosVersion.getResourceName()
-            );
-        } catch (CosmosException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error saving version document in CosmosDB");
-        }
     }
 
     @Override
-    public VersionDTO findVersionByUrl(String cosmosDocumentUrl) {
-        try {
-            URI uri = new URI(cosmosDocumentUrl);
-            String[] pathSegments = uri.getPath().split("/");
-            String versionId = pathSegments[pathSegments.length - 1];
+    public VersionDTO findVersionByUrl(String url) {
+        String id = url.substring(url.lastIndexOf("/") + 1);
+        Document document = versionsCollection.find(Filters.eq("_id", id)).first();
 
-
-            String query = uri.getQuery();
-            CosmosVersionDTO cosmosVersion = container.readItem(versionId, new PartitionKey(getPartitionKey(query)), CosmosVersionDTO.class).getItem();
-
-            if (cosmosVersion == null) {
-                throw new VersionException("CosmosDB document version not found in CosmosDB");
-            }
-
-            // Some fields are null because in this case we are interested only to retrieve metadata
-            return new VersionDTO(
-                    null, null,
-                    null, cosmosVersion.getVersionName(),
-                    cosmosVersion.getUsername(), cosmosVersion.getPushedAt(),
-                    cosmosVersion.getComment(), cosmosVersion.getTags(),
-                    null, null
-            );
-        } catch (CosmosException | URISyntaxException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error retrieving version document from CosmosDB via URL");
+        if (document == null) {
+            throw new VersionException("Version document not found in MongoDB");
         }
+
+        Object dateObj = document.get("pushedAt");
+        LocalDateTime pushedAt;
+        
+        if (dateObj instanceof java.util.Date date) {
+            pushedAt = date.toInstant()
+                           .atZone(java.time.ZoneId.systemDefault())
+                           .toLocalDateTime();
+        } else if (dateObj instanceof String dateStr) {
+            pushedAt = LocalDateTime.parse(dateStr);
+        } else {
+            pushedAt = LocalDateTime.now();
+        }
+        
+        return new VersionDTO(
+                null,
+                document.getString("branchName"),
+                null,
+                document.getString("versionName"),
+                document.getString("username"),
+                pushedAt,
+                document.getString("comment"),
+                (List<String>) document.get("tags"),
+                null,
+                null
+        );
     }
 
     @Override
-    public String getBlobUrlByUrl(String cosmosDocumentUrl) {
-        try {
-            URI uri = new URI(cosmosDocumentUrl);
-            String[] pathSegments = uri.getPath().split("/");
-            String versionId = pathSegments[pathSegments.length - 1];
+    public String getBlobUrlByUrl(String versionUrl) {
+        String id = versionUrl.substring(versionUrl.lastIndexOf("/") + 1);
+        Document doc = versionsCollection.find(Filters.eq("_id", id)).first();
 
-            String query = uri.getQuery();
-            CosmosVersionDTO cosmosVersion = container.readItem(versionId, new PartitionKey(getPartitionKey(query)), CosmosVersionDTO.class).getItem();
-
-            if (cosmosVersion == null) {
-                throw new VersionException("CosmosDB document version not found in CosmosDB");
-            }
-
-            return cosmosVersion.getBlobUrl();
-        } catch (CosmosException | URISyntaxException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error retrieving version document from CosmosDB via URL");
+        if (doc == null) {
+            throw new VersionException("Version document not found in MongoDB");
         }
+
+        return doc.getString("blobUrl");
     }
 
     @Override
-    public void deleteVersionByUrl(String cosmosDocumentUrl) {
-        try {
-            URI uri = new URI(cosmosDocumentUrl);
-            String[] pathSegments = uri.getPath().split("/");
-            String versionId = pathSegments[pathSegments.length - 1];
-
-            String query = uri.getQuery();
-            container.deleteItem(versionId, new PartitionKey(getPartitionKey(query)), new CosmosItemRequestOptions());
-        } catch (CosmosException | URISyntaxException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new VersionException("Error deleting version document in CosmosDB");
-        }
+    public void deleteVersionByUrl(String versionUrl) {
+        String id = versionUrl.substring(versionUrl.lastIndexOf("/") + 1);
+        versionsCollection.deleteOne(Filters.eq("_id", id));
     }
 }

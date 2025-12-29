@@ -2,73 +2,57 @@ package it.unisa.ddditserver.db.cosmos.auth;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.azure.cosmos.*;
-import com.azure.cosmos.models.PartitionKey;
 import it.unisa.ddditserver.subsystems.auth.dto.BlacklistedTokenDTO;
 import it.unisa.ddditserver.subsystems.auth.exceptions.AuthException;
-import it.unisa.ddditserver.db.cosmos.CosmosConfig;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class CosmosAuthRepositoryImpl implements CosmosAuthRepository {
-    private final CosmosConfig config;
-    private CosmosContainer blacklistContainer;
+
+    private final MongoTemplate mongoTemplate;
 
     @Autowired
-    public CosmosAuthRepositoryImpl(CosmosConfig config) {
-        this.config = config;
-    }
-
-    @PostConstruct
-    public void init() {
-        // Build client connection to Cosmos server
-        CosmosClient cosmosClient = new CosmosClientBuilder()
-                .endpoint(config.getEndpoint())
-                .key(config.getKey())
-                .buildClient();
-
-        // Get database reference
-        CosmosDatabase database = cosmosClient.getDatabase(config.getDatabaseName());
-
-        // Get container reference for token blacklist
-        this.blacklistContainer = database.getContainer(config.getTokenBlacklistContainerName());
+    public CosmosAuthRepositoryImpl(MongoTemplate mongoTemplate) {
+        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
     public void blacklistToken(String token) {
         try {
             DecodedJWT decodedJWT = JWT.decode(token);
+
+            if (decodedJWT.getExpiresAt() == null) {
+                throw new AuthException("Il token non ha una data di scadenza valida");
+            }
+
             long tokenExpiryTimestamp = decodedJWT.getExpiresAt().getTime() / 1000;
             long currentTimestamp = System.currentTimeMillis() / 1000;
 
             int remainingTtl = (int) (tokenExpiryTimestamp - currentTimestamp);
 
-            if (remainingTtl <= 0) return;
+            if (remainingTtl <= 0) {
+                return;
+            }
 
             BlacklistedTokenDTO blacklistedToken = new BlacklistedTokenDTO(token, token, remainingTtl);
-            blacklistContainer.upsertItem(blacklistedToken);
-        } catch (CosmosException e) {
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new AuthException("Error blacklisting token");
+
+            mongoTemplate.save(blacklistedToken);
+
+        } catch (Exception e) {
+            throw new AuthException("Errore durante il blacklisting del token su MongoDB: " + e.getMessage());
         }
     }
 
     @Override
     public boolean isTokenBlacklisted(String token) {
         try {
-            BlacklistedTokenDTO blacklistedTokenDTO = blacklistContainer.
-                    readItem(token, new PartitionKey(token), BlacklistedTokenDTO.class).getItem();
+            BlacklistedTokenDTO found = mongoTemplate.findById(token, BlacklistedTokenDTO.class);
 
-            return blacklistedTokenDTO!= null;
-        } catch (CosmosException e) {
-            if (e.getStatusCode() == 404) {
-                return false;
-            }
-            // If it is necessary use a RuntimeException for more detailed debug
-            throw new AuthException("Error checking blacklisted token");
+            return found != null;
+        } catch (Exception e) {
+            throw new AuthException("Errore durante la verifica del token nella blacklist: " + e.getMessage());
         }
     }
 }
-
