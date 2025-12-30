@@ -120,6 +120,11 @@ jobs:
           sed -i 's|dockerfile: Dockerfile|#dockerfile: Dockerfile|' docker-compose.yml
           sed -i '/container_name: ddditserverlocalenv/i\    image: ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest' docker-compose.yml
           
+          echo "Fixing JanusGraph permissions..."
+          if [ -d "janusgraph-conf" ]; then
+            sudo chown -R 999:999 janusgraph-conf/ || chmod -R 777 janusgraph-conf/
+          fi
+          
           echo "Cleaning up old images..."
           docker image prune -f
           
