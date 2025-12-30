@@ -37,12 +37,11 @@ jobs:
 
       - name: Build with Maven
         run: mvn clean package -DskipTests
-        working-directory: ./ddditserver
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./ddditserver
+          context: .
           platforms: linux/amd64
           push: true
           tags: |
@@ -77,26 +76,21 @@ jobs:
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deployer@${{ secrets.REMOTE_HOST }} << 'EOF'
           echo "Starting deployment..."
           
-          # Pull della nuova immagine
           echo "Pulling latest Docker image..."
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:latest
           
-          # Stop del container esistente se presente
           echo "Stopping existing container..."
           docker stop ddditserver 2>/dev/null || echo "No container to stop"
           docker rm ddditserver 2>/dev/null || echo "No container to remove"
           
-          # Cleanup immagini vecchie
           echo "Cleaning up old images..."
           docker image prune -f
           
-          # Verifica che il file .env esista
           if [ ! -f "/opt/ddditserver/.env" ]; then
             echo "ERROR: .env file not found at /opt/ddditserver/.env"
             exit 1
           fi
           
-          # Avvio del nuovo container
           echo "Starting new container..."
           docker run -d \
             --name ddditserver \
@@ -105,7 +99,6 @@ jobs:
             -p 8080:8080 \
             ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:latest
           
-          # Verifica che il container sia running
           echo "Checking container status..."
           sleep 5
           if docker ps | grep -q ddditserver; then
