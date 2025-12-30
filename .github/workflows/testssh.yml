@@ -17,6 +17,11 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
+
       - name: Test SSH
         run: |
           ssh deployer@${{ secrets.REMOTE_HOST }} "echo SSH OK"
