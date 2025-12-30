@@ -19,4 +19,4 @@ jobs:
 
       - name: Test SSH
         run: |
-          ssh deployer@100.101.102.103 "echo SSH OK"
+          ssh deployer@${{ secrets.REMOTE_HOST }} "echo SSH OK"
