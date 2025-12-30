@@ -17,11 +17,22 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Add server to known_hosts
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
+          echo "${{ secrets.REMOTE_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Add server to known_hosts
+        run: |
           ssh-keyscan -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Test SSH
-        run: |
-          ssh deployer@${{ secrets.REMOTE_HOST }} "echo SSH OK"
+      - name: Test SSH connection
+        run: ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deployer@${{ secrets.REMOTE_HOST }} "echo SSH OK"
+
+      - name: Deploy commands
+        run: ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deployer@${{ secrets.REMOTE_HOST }} << 'EOF'
+          echo "Deploy started..."
+          docker --version
+          ls -la /opt/.env
+          echo "Deploy completed!"
