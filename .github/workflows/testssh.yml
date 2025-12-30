@@ -1,6 +1,9 @@
 name: Docker Build and Deploy
 
 on:
+  push:
+    branches:
+      - localenv
   workflow_dispatch:
 
 jobs:
@@ -45,8 +48,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -54,6 +57,11 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: localenv
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
@@ -71,44 +79,77 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.REMOTE_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Copy docker-compose and config files to server
+        run: |
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            docker-compose.yml \
+            deployer@${{ secrets.REMOTE_HOST }}:/opt/ddditserver/
+          
+          if [ -d "janusgraph-conf" ]; then
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r \
+              janusgraph-conf \
+              deployer@${{ secrets.REMOTE_HOST }}:/opt/ddditserver/
+          fi
+
       - name: Deploy to server
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deployer@${{ secrets.REMOTE_HOST }} << 'EOF'
-          echo "Starting deployment..."
+          cd /opt/ddditserver
           
-          echo "Pulling latest Docker image..."
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:latest
+          echo "Starting deployment from localenv branch..."
           
-          echo "Stopping existing container..."
-          docker stop ddditserver 2>/dev/null || echo "No container to stop"
-          docker rm ddditserver 2>/dev/null || echo "No container to remove"
-          
-          echo "Cleaning up old images..."
-          docker image prune -f
-          
-          if [ ! -f "/opt/ddditserver/.env" ]; then
+          if [ ! -f ".env" ]; then
             echo "ERROR: .env file not found at /opt/ddditserver/.env"
             exit 1
           fi
           
-          echo "Starting new container..."
-          docker run -d \
-            --name ddditserver \
-            --restart unless-stopped \
-            --env-file /opt/ddditserver/.env \
-            -p 8080:8080 \
-            ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:latest
-          
-          echo "Checking container status..."
-          sleep 5
-          if docker ps | grep -q ddditserver; then
-            echo "Container ddditserver is running successfully!"
-            docker ps | grep ddditserver
-          else
-            echo "ERROR: Container failed to start"
-            docker logs ddditserver
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "ERROR: docker-compose.yml not found"
             exit 1
           fi
           
-          echo "Deployment completed successfully"
+          echo "Stopping existing services..."
+          docker compose down || echo "No services to stop"
+          
+          echo "Pulling latest app image..."
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
+          
+          echo "Updating docker-compose to use pushed image..."
+          sed -i 's|build:|#build:|' docker-compose.yml
+          sed -i 's|context: \.|#context: \.|' docker-compose.yml
+          sed -i 's|dockerfile: Dockerfile|#dockerfile: Dockerfile|' docker-compose.yml
+          sed -i '/container_name: ddditserverlocalenv/i\    image: ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest' docker-compose.yml
+          
+          echo "Cleaning up old images..."
+          docker image prune -f
+          
+          echo "Starting all services..."
+          docker compose up -d
+          
+          echo "Waiting for services to start..."
+          sleep 30
+          
+          echo "Checking services status..."
+          docker compose ps
+          
+          echo "Checking app health..."
+          if docker ps | grep -q ddditserverlocalenv; then
+            echo "App container is running!"
+            
+            sleep 10
+            if curl -f http://localhost:8080 >/dev/null 2>&1; then
+              echo "App is responding on port 8080"
+            else
+              echo "App container is running but not responding on port 8080"
+              docker logs ddditserverlocalenv --tail 20
+            fi
+          else
+            echo "ERROR: App container failed to start"
+            docker compose logs ddditserverlocalenv
+            exit 1
+          fi
+          
+          echo "Deployment from localenv branch completed successfully!"
+          echo "Services running:"
+          docker compose ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"
           EOF
