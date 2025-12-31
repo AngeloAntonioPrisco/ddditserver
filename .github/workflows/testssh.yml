@@ -76,39 +76,36 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           echo "${{ secrets.REMOTE_KNOWN_HOST }}" > ~/.ssh/known_hosts
 
-      - name: Copy docker-compose-actions.yml to server
+      - name: Copy docker-compose to server
         run: |
           scp -i ~/.ssh/id_rsa \
             -o StrictHostKeyChecking=yes \
             docker-compose-actions.yml \
             deployer@${{ secrets.REMOTE_HOST }}:/opt/ddditserver/
 
-      - name: Deploy only app container
+      - name: Deploy all containers
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=yes deployer@${{ secrets.REMOTE_HOST }} << 'EOF'
-          cd /opt/ddditserver
+            cd /opt/ddditserver
 
-          echo "Pulling latest app image..."
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
+            echo "Pulling latest app image..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
 
-          echo "Updating docker-compose-actions.yml to use pushed image..."
-          sed -i "s|image:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest|" docker-compose-actions.yml
+            echo "Deploying all services with docker-compose..."
+            docker compose up -d
 
-          echo "Deploying app container..."
-          docker compose -f docker-compose-actions.yml up -d app
+            echo "Cleaning old images..."
+            docker image prune -f
 
-          echo "Cleaning old images..."
-          docker image prune -f
+            echo "Waiting for app to start..."
+            sleep 15
 
-          echo "Waiting for app to start..."
-          sleep 15
-
-          echo "Checking app health..."
-          if curl -f http://localhost:8080 >/dev/null 2>&1; then
-            echo "App is running and responding on port 8080"
-          else
-            echo "App container is running but not responding on port 8080"
-            docker logs app --tail 20
-            exit 1
-          fi
+            echo "Checking app health..."
+            if curl -f http://localhost:8080 >/dev/null 2>&1; then
+              echo "App is running and responding on port 8080"
+            else
+              echo "App container is running but not responding on port 8080"
+              docker logs ddditserver --tail 20
+              exit 1
+            fi
           EOF
