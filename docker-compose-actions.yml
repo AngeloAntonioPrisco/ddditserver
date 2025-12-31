@@ -1,76 +1,8 @@
+version: "3.9"
+
 services:
-
-  janusgraph:
-    image: janusgraph/janusgraph:1.0
-    container_name: janusgraph
-    command: [ "bin/janusgraph-server.sh", "conf/janusgraph-server.yaml" ]
-    ports:
-      - "8182:8182"
-    env_file:
-      - .env
-    environment:
-      JANUS_PROPS_STORAGE_HOSTNAME: ${JANUS_HOST}
-      JANUS_USER: ${JANUS_USERNAME}
-      JANUS_PASSWORD: ${JANUS_PASSWORD}
-    volumes:
-      - janus-data:/var/lib/janusgraph
-      - ./janusgraph-conf:/opt/janusgraph/conf
-    healthcheck:
-      test: [ "CMD", "bin/gremlin.sh", "-e", "scripts/healthcheck.groovy" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  minio:
-    image: minio/minio
-    container_name: minio
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    env_file:
-      - .env
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USERNAME}
-    volumes:
-      - minio-data:/data
-
-  mongodb:
-    image: mongo:6
-    container_name: mongodb
-    ports:
-      - "27017:27017"
-    env_file:
-      - .env
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGODB_NAME}
-    volumes:
-      - mongo-data:/data/db
-  
-  # This can be useful during development but not necessary in production
-  mongo-express:
-    image: mongo-express:latest
-    container_name: dddit-mongo-gui
-    restart: always
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_SERVER: mongodb
-      ME_CONFIG_MONGODB_PORT: 27017
-      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USERNAME}
-      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD}
-      ME_CONFIG_BASICAUTH_USERNAME:
-      ME_CONFIG_BASICAUTH_PASSWORD:
-      ME_CONFIG_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/
-    depends_on:
-      - mongodb
-
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: angeloantonioprisco/ddditserver:localenv-latest
     container_name: ddditserverlocalenv
     ports:
       - "8080:8080"
@@ -107,6 +39,7 @@ services:
       FROM_EMAIL: ${FROM_EMAIL}
       TO_EMAIL: ${TO_EMAIL}
       APP_PASSWORD: ${APP_PASSWORD}
+
     depends_on:
       janusgraph:
         condition: service_started
@@ -114,8 +47,3 @@ services:
         condition: service_started
       mongodb:
         condition: service_started
-
-volumes:
-  janus-data:
-  minio-data:
-  mongo-data:
