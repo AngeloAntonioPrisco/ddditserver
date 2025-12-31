@@ -41,11 +41,10 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Build and push Docker image for app
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
           platforms: linux/amd64
           push: true
           tags: |
@@ -77,7 +76,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           echo "${{ secrets.REMOTE_KNOWN_HOST }}" > ~/.ssh/known_hosts
 
-      - name: Copy docker-compose-actions to server
+      - name: Copy docker-compose-actions.yml to server
         run: |
           scp -i ~/.ssh/id_rsa \
             -o StrictHostKeyChecking=yes \
@@ -92,11 +91,11 @@ jobs:
           echo "Pulling latest app image..."
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
 
-          echo "Updating docker-compose-actions to use pulled image..."
+          echo "Updating docker-compose-actions.yml to use pushed image..."
           sed -i "s|image:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest|" docker-compose-actions.yml
 
           echo "Deploying app container..."
-          docker compose -f docker-compose-actions.yml up -d ddditserver
+          docker compose -f docker-compose-actions.yml up -d app
 
           echo "Cleaning old images..."
           docker image prune -f
@@ -109,7 +108,7 @@ jobs:
             echo "App is running and responding on port 8080"
           else
             echo "App container is running but not responding on port 8080"
-            docker logs ddditserver --tail 20
+            docker logs app --tail 20
             exit 1
           fi
           EOF
