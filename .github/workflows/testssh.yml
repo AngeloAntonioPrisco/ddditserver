@@ -41,10 +41,11 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image for app
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile
           platforms: linux/amd64
           push: true
           tags: |
@@ -76,11 +77,11 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           echo "${{ secrets.REMOTE_KNOWN_HOST }}" > ~/.ssh/known_hosts
 
-      - name: Copy docker-compose override to server
+      - name: Copy docker-compose-actions to server
         run: |
           scp -i ~/.ssh/id_rsa \
             -o StrictHostKeyChecking=yes \
-            docker-compose.override.yml \
+            docker-compose-actions.yml \
             deployer@${{ secrets.REMOTE_HOST }}:/opt/ddditserver/
 
       - name: Deploy only app container
@@ -91,11 +92,11 @@ jobs:
           echo "Pulling latest app image..."
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
 
-          echo "Updating docker-compose override to use pushed image..."
-          sed -i "s|image:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest|" docker-compose.override.yml
+          echo "Updating docker-compose-actions to use pulled image..."
+          sed -i "s|image:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest|" docker-compose-actions.yml
 
           echo "Deploying app container..."
-          docker compose up -d ddditserver
+          docker compose -f docker-compose-actions.yml up -d ddditserver
 
           echo "Cleaning old images..."
           docker image prune -f
