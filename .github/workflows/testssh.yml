@@ -92,7 +92,7 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ddditserver:localenv-latest
 
             echo "Deploying all services with docker-compose..."
-            docker compose up -d
+            docker compose -f docker-compose-actions.yml up -d
 
             echo "Cleaning old images..."
             docker image prune -f
