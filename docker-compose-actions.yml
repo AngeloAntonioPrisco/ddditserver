@@ -53,9 +53,6 @@ services:
   app:
     image: ${DOCKERHUB_USERNAME}/ddditserver:localenv-latest
     container_name: ddditserver
-    build:
-      context: .
-      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     env_file:
