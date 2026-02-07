@@ -54,14 +54,14 @@ public class VersionServiceImpl implements VersionService {
                 .toLowerCase();
         if (base.length() > 3) base = base.substring(0, 3);
 
-        String uuidPart = UUID.randomUUID().toString().replaceAll("-", "");
-        uuidPart = uuidPart.substring(0, 4);
-
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yy-MM-HH:mm");
+        String uuidPart = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 4);
+        java.time.format.DateTimeFormatter formatter =
+                java.time.format.DateTimeFormatter.ofPattern("yy-MM-HH-mm");
         String timestamp = java.time.LocalDateTime.now().format(formatter);
 
         return timestamp + "-" + base + uuidPart;
     }
+
 
     @Override
     public ResponseEntity<Map<String, String>> createVersion(VersionDTO versionDTO, String token) {
