@@ -141,7 +141,7 @@ public class BlobStorageVersionRepositoryImplTest {
     @Test
     void deleteMaterialByUrlSuccess() throws Exception {
         String materialUrl = "http://localhost:9000/materials/repo/res/v1/";
-        
+
         Item item = mock(Item.class);
         when(item.objectName()).thenReturn("repo/res/v1/texture.png");
         Result<Item> mockResult = (Result<Item>) mock(Result.class);

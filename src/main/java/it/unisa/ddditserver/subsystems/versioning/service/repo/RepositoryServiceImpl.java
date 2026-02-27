@@ -19,14 +19,20 @@ import java.util.Map;
 
 @Service
 public class RepositoryServiceImpl implements  RepositoryService {
-    @Autowired
-    private GremlinRepositoryRepository gremlinService;
-    @Autowired
-    private JWTokenValidator jwTokenValidator;
-    @Autowired
-    private UserValidator userValidator;
-    @Autowired
-    private RepositoryValidator repositoryValidator;
+    private final GremlinRepositoryRepository gremlinService;
+    private final JWTokenValidator jwTokenValidator;
+    private final UserValidator userValidator;
+    private final RepositoryValidator repositoryValidator;
+
+    public RepositoryServiceImpl(GremlinRepositoryRepository gremlinService,
+                                 JWTokenValidator jwTokenValidator,
+                                 UserValidator userValidator,
+                                 RepositoryValidator repositoryValidator) {
+        this.gremlinService = gremlinService;
+        this.jwTokenValidator = jwTokenValidator;
+        this.userValidator = userValidator;
+        this.repositoryValidator = repositoryValidator;
+    }
 
     @Override
     public ResponseEntity<Map<String, String>> createRepository(RepositoryDTO repositoryDTO, String token) {
