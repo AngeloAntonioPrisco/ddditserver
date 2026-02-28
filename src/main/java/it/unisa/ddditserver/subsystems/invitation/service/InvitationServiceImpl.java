@@ -13,7 +13,6 @@ import it.unisa.ddditserver.validators.auth.user.UserValidationDTO;
 import it.unisa.ddditserver.validators.auth.user.UserValidator;
 import it.unisa.ddditserver.validators.invitation.InvitationValidationDTO;
 import it.unisa.ddditserver.validators.invitation.InvitationValidator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
