@@ -65,7 +65,7 @@ public class VersionServiceImpl implements VersionService {
                 .toLowerCase();
         if (base.length() > 3) base = base.substring(0, 3);
 
-        String uuidPart = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 4);
+        String uuidPart = UUID.randomUUID().toString().replace("-", "").substring(0, 4);
         java.time.format.DateTimeFormatter formatter =
                 java.time.format.DateTimeFormatter.ofPattern("yy-MM-HH-mm");
         String timestamp = java.time.LocalDateTime.now().format(formatter);
@@ -89,6 +89,10 @@ public class VersionServiceImpl implements VersionService {
 
         boolean resourceType;
 
+        if (retrievedUsername == null) {
+            throw new NotLoggedUserException("Missing, invalid, or expired Authorization token");
+        }
+
         if (versionDTO.getMesh() == null) {
             resourceType = false;
             material = versionDTO.getMaterial();
@@ -97,11 +101,7 @@ public class VersionServiceImpl implements VersionService {
             resourceType = true;
             mesh =  versionDTO.getMesh();
             // ATTENTION: At the moment this is a placeholder, no classification is performed
-            tags = new ArrayList<>();
-        }
-
-        if (retrievedUsername == null) {
-            throw new NotLoggedUserException("Missing, invalid, or expired Authorization token");
+            tags = tagClassificationService.classify(versionDTO);
         }
 
         checkUserStatus(repositoryName, retrievedUsername);
@@ -112,10 +112,6 @@ public class VersionServiceImpl implements VersionService {
         userValidator.validateExistence(userValidationDTO, true);
 
         VersionValidationDTO versionValidationDTO;
-
-        if (mesh != null && material != null) {
-            throw new VersionException("Can't push both a mesh and a material");
-        }
 
         if (resourceType) {
             versionValidationDTO = new VersionValidationDTO(repositoryName, resourceName, branchName, versionName, comment, mesh, null);
