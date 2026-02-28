@@ -20,7 +20,7 @@ public class TagClassificationControllerImpl implements TagClassificationControl
 
     @Override
     @GetMapping("/reload")
-    public ResponseEntity<?> reloadModel() {
+    public ResponseEntity<Map<String, Object>> reloadModel() {
         tagClassificationService.getOnnxModelsInFolder();
 
         Map<String, Object> response = new HashMap<>();
