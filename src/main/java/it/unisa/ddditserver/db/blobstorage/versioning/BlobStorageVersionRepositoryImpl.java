@@ -7,7 +7,6 @@ import it.unisa.ddditserver.subsystems.versioning.dto.version.VersionDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.version.VersionException;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.tuple.Triple;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -64,10 +63,13 @@ public class BlobStorageVersionRepositoryImpl implements BlobStorageVersionRepos
 
     @Override
     public String saveMaterial(VersionDTO versionDTO) {
-        String basePath = versionDTO.getRepositoryName() + "/" +
-                versionDTO.getResourceName() + "/" +
-                versionDTO.getBranchName() + "/" +
-                versionDTO.getVersionName() + "/";
+
+        private static final String PATH_SEPARATOR = "/";
+
+        String basePath = versionDTO.getRepositoryName() + PATH_SEPARATOR +
+                versionDTO.getResourceName() + PATH_SEPARATOR +
+                versionDTO.getBranchName() + PATH_SEPARATOR +
+                versionDTO.getVersionName() + PATH_SEPARATOR;
 
         try {
             for (var texture : versionDTO.getMaterial()) {
