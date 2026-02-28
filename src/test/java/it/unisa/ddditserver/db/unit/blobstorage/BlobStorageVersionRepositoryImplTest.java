@@ -86,13 +86,13 @@ import static org.mockito.Mockito.*;
     }
 
     @Test
-    void existsMaterialByUrlReturnsTrue() throws Exception {
+    void existsMaterialByUrlReturnsTrue() {
         String materialUrl = "http://localhost:9000/materials/repo/res/v1/";
 
         @SuppressWarnings("unchecked")
         Result<Item> mockItem = (Result<Item>) mock(Result.class);
 
-        // NON serve when(mockItem.get()) perché existsMaterialByUrl usa solo iterator().hasNext()
+        // It is not necessary when(mockItem.get()) because existsMaterialByUrl use only iterator().hasNext()
         when(minioClient.listObjects(any(ListObjectsArgs.class))).thenReturn(List.of(mockItem));
 
         assertTrue(repository.existsMaterialByUrl(materialUrl));
