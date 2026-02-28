@@ -19,6 +19,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/branches")
 public class BranchControllerImpl implements BranchController {
+
+    private static final String ERROR_KEY = "error";
+
     private BranchService branchService;
 
     public BranchControllerImpl(BranchService branchService) {
@@ -44,13 +47,13 @@ public class BranchControllerImpl implements BranchController {
                  InvalidBranchNameException | ExistingBranchException |
                  NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (BranchException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during branch creation", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during branch creation", "details", e.getMessage()));
         }
     }
 
@@ -63,13 +66,13 @@ public class BranchControllerImpl implements BranchController {
             return branchService.listBranchesByResource(resourceDTO, token);
         } catch (RepositoryException | ResourceException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (BranchException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during listing branches", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during listing branches", "details", e.getMessage()));
         }
     }
 }
