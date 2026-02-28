@@ -67,6 +67,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                     "uName", userDTO.getUsername(),
                     "rName", repositoryDTO.getRepositoryName())).all().get();
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error saving repository: " + e.getMessage());
         }
     }
@@ -78,6 +79,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
             List<Result> results = client.submit(query, Map.of("rName", repositoryDTO.getRepositoryName())).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error checking repository existence");
         }
     }
@@ -102,6 +104,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
             }
             return contributors;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error finding contributors in JanusGraph");
         }
     }
@@ -118,6 +121,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
             List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username, REPOSITORY_NAME_KEY, repositoryName)).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error checking contributor status in JanusGraph");
         }
     }
@@ -134,6 +138,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
             List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username, REPOSITORY_NAME_KEY, repositoryName)).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error checking owner status in JanusGraph");
         }
     }
@@ -153,6 +158,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
         try {
             client.submit(query, Map.of(USERNAME_KEY, username, REPOSITORY_NAME_KEY, repositoryName)).all().get();
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error adding contributor in JanusGraph");
         }
     }
@@ -172,6 +178,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
             }
             return repositories;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error finding owned repositories in JanusGraph");
         }
     }
@@ -191,6 +198,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
             }
             return repositories;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new RepositoryException("Error finding contributed repositories in JanusGraph");
         }
     }
