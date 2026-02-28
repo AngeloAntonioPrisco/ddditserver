@@ -56,7 +56,7 @@ public class VersionValidatorImpl implements VersionValidator {
 
     private static final int FILE_NAME_MIN_LENGTH = 3;
     private static final int FILE_NAME_MAX_LENGTH = 30;
-    private static final Pattern FILE_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]+$");
+    private static final Pattern FILE_NAME_PATTERN = Pattern.compile("^\\w+$");
 
     private static final int COMMENT_MIN_LENGTH = 0;
     private static final int COMMENT_MAX_LENGTH = 200;
@@ -154,20 +154,15 @@ public class VersionValidatorImpl implements VersionValidator {
             throw new InvalidVersionNameException("Version name must be 3-30 chars long and can contain letters, digits and _ only");
         }
 
-        if (resourceType)
-        {
-            if (!isValidMesh(mesh)) {
-                if (!isValidTexture(mesh)) {
-                    throw new InvalidMeshException("Mesh name must be 3-30 chars long and can contain letters," +
-                            " digits and _ only, and must end with .fbx, other than being less than 1GB");
-                }
+        if (resourceType) {
+            boolean ok = isValidMesh(mesh) || isValidTexture(mesh);
+            if (!ok) {
+                throw new InvalidMeshException("Mesh name must be 3-30 chars long and can contain letters, digits and _ only, and must end with .fbx, other than being less than 1GB");
             }
-        }
-        else {
-            for (MultipartFile texture :  material) {
+        } else {
+            for (MultipartFile texture : material) {
                 if (!isValidTexture(texture)) {
-                    throw new InvalidMaterialException("Texture name must be 3-30 chars long and can contain letters," +
-                            " digits and _ only, and must end with .png, other than being less than 1GB");
+                    throw new InvalidMaterialException("Texture name must be 3-30 chars long and can contain letters, digits and _ only, and must end with .png, other than being less than 1GB");
                 }
             }
         }
