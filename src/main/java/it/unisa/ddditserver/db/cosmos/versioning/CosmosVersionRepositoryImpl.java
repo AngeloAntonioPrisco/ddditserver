@@ -26,8 +26,10 @@ public class CosmosVersionRepositoryImpl implements CosmosVersionRepository {
 
     @PostConstruct
     public void init() {
-        MongoClient mongoClient = MongoClients.create(config.getConnectionString());
-        MongoDatabase database = mongoClient.getDatabase(config.getDatabaseName());
+        MongoDatabase database;
+        try (MongoClient mongoClient = MongoClients.create(config.getConnectionString())) {
+            database = mongoClient.getDatabase(config.getDatabaseName());
+        }
         versionsCollection = database.getCollection(config.getVersionsCollection());
     }
 
