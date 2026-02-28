@@ -1,5 +1,6 @@
 package it.unisa.ddditserver.subsystems.versioning.service.version;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.springframework.core.io.InputStreamResource;
 import java.io.InputStream;
@@ -13,6 +14,8 @@ import java.io.InputStream;
  * @version 1.0
  * @since 2025-08-23
  */
+@Getter
+@EqualsAndHashCode(callSuper = false)
 public class NonClosingInputStreamResource extends InputStreamResource {
     private final String filename;
     @Getter
