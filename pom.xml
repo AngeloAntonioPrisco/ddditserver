@@ -34,8 +34,20 @@
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <sonar.pitest.mode>reuseReport</sonar.pitest.mode>
         <sonar.pitest.reportsDirectory>target/pit-reports</sonar.pitest.reportsDirectory>
-        <sonar.cpd.exclusions>
-        </sonar.cpd.exclusions>
+        <sonar.exclusions>
+            janusgraph-conf/**,
+            .github/**,
+            .mvn/**,
+            src/benchmark/**,
+            src/test/**,
+            src/main/java/it/unisa/ddditserver/subsystems/ai/exceptions/**,
+            src/main/java/it/unisa/ddditserver/subsystems/auth/exceptions/**,
+            src/main/java/it/unisa/ddditserver/subsystems/invitation/exceptions/**,
+            src/main/java/it/unisa/ddditserver/subsystems/versioning/exceptions/**,
+            **/target/**
+        </sonar.exclusions>
+        <sonar.coverage.exclusions>
+        </sonar.coverage.exclusions>
 	</properties>
     <dependencyManagement>
         <dependencies>
