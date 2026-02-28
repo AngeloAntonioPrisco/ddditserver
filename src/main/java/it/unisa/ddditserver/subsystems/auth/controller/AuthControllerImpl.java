@@ -15,6 +15,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/auth")
 public class AuthControllerImpl implements AuthController {
+
+    private static final String DETAILS_KEY = "details";
+
+    private static final String ERROR_KEY = "error";
+
     private AuthService authService;
 
     public AuthControllerImpl(AuthService authService) {
@@ -40,15 +45,15 @@ public class AuthControllerImpl implements AuthController {
                  ExistingUserException | LoggedUserException e) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (AuthException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during signup", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during signup", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -64,15 +69,15 @@ public class AuthControllerImpl implements AuthController {
                  LoggedUserException e) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (AuthException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during login", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during login", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -84,13 +89,13 @@ public class AuthControllerImpl implements AuthController {
             return authService.logout(token);
         } catch (NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (AuthException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during logout", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during logout", DETAILS_KEY, e.getMessage()));
         }
     }
 }
