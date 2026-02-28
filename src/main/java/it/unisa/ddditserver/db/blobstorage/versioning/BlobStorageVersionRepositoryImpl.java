@@ -40,7 +40,7 @@ public class BlobStorageVersionRepositoryImpl implements BlobStorageVersionRepos
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(config.getMaterialsBucket()).build());
             }
         } catch (Exception e) {
-            throw new RuntimeException("Errore durante la creazione dei bucket MinIO", e);
+            throw new VersionException("Errore durante la creazione dei bucket MinIO");
         }
     }
 
