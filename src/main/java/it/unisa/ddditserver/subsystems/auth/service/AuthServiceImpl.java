@@ -23,14 +23,17 @@ import java.util.Map;
 
 @Service
 public class AuthServiceImpl implements AuthService {
-    @Autowired
     private GremlinAuthRepository gremlinService;
-    @Autowired
     private CosmosAuthRepository cosmosAuthRepository;
-    @Autowired
     private JWTokenValidator jwtTokenValidator;
-    @Autowired
     private UserValidator userValidator;
+
+    public AuthServiceImpl(GremlinAuthRepository gremlinService, CosmosAuthRepository cosmosAuthRepository, JWTokenValidator jwtTokenValidator, UserValidator userValidator) {
+        this.gremlinService = gremlinService;
+        this.cosmosAuthRepository = cosmosAuthRepository;
+        this.jwtTokenValidator = jwtTokenValidator;
+        this.userValidator = userValidator;
+    }
 
     @Value("${JWT_SECRET}")
     public String jwtSecretBase64;
