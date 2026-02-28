@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.Map;
+
 /**
  * Controller interface for branch endpoints.
  *
@@ -26,7 +28,7 @@ public interface BranchController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the branch creation operation
      */
-    ResponseEntity<?> createResource(@RequestBody BranchDTO branchDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, String>> createResource(@RequestBody BranchDTO branchDTO, HttpServletRequest request);
 
     /**
      * Handles the request to list all branches of a given resource.
@@ -35,5 +37,5 @@ public interface BranchController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity containing the list of branches for the specified resource
      */
-    ResponseEntity<?> listBranchesByResource(@RequestBody ResourceDTO resourceDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, Object>> listBranchesByResource(@RequestBody ResourceDTO resourceDTO, HttpServletRequest request);
 }
