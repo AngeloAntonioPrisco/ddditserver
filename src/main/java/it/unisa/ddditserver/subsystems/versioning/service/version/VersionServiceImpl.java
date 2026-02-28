@@ -26,6 +26,14 @@ import java.util.*;
 @Service
 public class VersionServiceImpl implements VersionService {
 
+    private static final String RESOURCE_IN_KEY = " resource in ";
+
+    private static final String BRANCH_FOR_KEY = " branch for ";
+
+    private static final String MESSAGE_KEY = "message";
+
+    private static final String REPOSITORY_KEY = " repository";
+
     private GremlinVersionRepository gremlinVersionRepository;
     private GremlinRepositoryRepository gremlinRepositoryRepository;
     private JWTokenValidator jwTokenValidator;
@@ -47,7 +55,7 @@ public class VersionServiceImpl implements VersionService {
         UserDTO userDTO = new UserDTO(username, null);
 
         if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) && !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
-            throw new RepositoryException("Permission denied because " + username + " is not a contributor or the owner of " + repositoryName + " repository");
+            throw new RepositoryException("Permission denied because " + username + " is not a contributor or the owner of " + repositoryName + REPOSITORY_KEY);
         }
     }
 
@@ -152,15 +160,15 @@ public class VersionServiceImpl implements VersionService {
 
         Map<String, String> response = new HashMap<>();
         if (resourceType) {
-            response.put("message", "Version of " + mesh.getOriginalFilename() +
+            response.put(MESSAGE_KEY, "Version of " + mesh.getOriginalFilename() +
                     " pushed successfully as " + generatedVersionName + " in " +
-                    branchName + " branch for " + resourceName + " resource in " +
-                    repositoryName + " repository");
+                    branchName + BRANCH_FOR_KEY + resourceName + RESOURCE_IN_KEY +
+                    repositoryName + REPOSITORY_KEY);
         } else {
-            response.put("message", "Version of " + versionName +
+            response.put(MESSAGE_KEY, "Version of " + versionName +
                     " pushed successfully as " + generatedVersionName + " in " +
-                    branchName + " branch for " + resourceName + " resource in " +
-                    repositoryName + " repository");
+                    branchName + BRANCH_FOR_KEY + resourceName + RESOURCE_IN_KEY +
+                    repositoryName + REPOSITORY_KEY);
         }
 
         return ResponseEntity.ok(response);
@@ -204,9 +212,9 @@ public class VersionServiceImpl implements VersionService {
         }
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("message", new HttpEntity<>(
+        body.add(MESSAGE_KEY, new HttpEntity<>(
                 "Version " + versionName + " pulled successfully from " + branchName +
-                        " branch for " + resourceName + " resource in " + repositoryName + " repository",
+                        BRANCH_FOR_KEY + resourceName + RESOURCE_IN_KEY + repositoryName + REPOSITORY_KEY,
                 new HttpHeaders()
         ));
 
@@ -268,7 +276,7 @@ public class VersionServiceImpl implements VersionService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Version information retrieved successfully");
+        response.put(MESSAGE_KEY, "Version information retrieved successfully");
         response.put("versionName", versionDTO.getVersionName());
         response.put("username", versionDTO.getUsername() != null ? versionDTO.getUsername() : "anonymous");
 

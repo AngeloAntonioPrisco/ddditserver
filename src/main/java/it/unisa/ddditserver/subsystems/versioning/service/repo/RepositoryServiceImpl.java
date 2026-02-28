@@ -18,6 +18,9 @@ import java.util.Map;
 
 @Service
 public class RepositoryServiceImpl implements  RepositoryService {
+
+    private static final String MESSAGE_KEY = "message";
+
     private final GremlinRepositoryRepository gremlinService;
     private final JWTokenValidator jwTokenValidator;
     private final UserValidator userValidator;
@@ -63,7 +66,7 @@ public class RepositoryServiceImpl implements  RepositoryService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Repository " + repositoryName + " created successfully");
+        response.put(MESSAGE_KEY, "Repository " + repositoryName + " created successfully");
 
         return ResponseEntity.ok(response);
     }
@@ -90,7 +93,7 @@ public class RepositoryServiceImpl implements  RepositoryService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Owned repositories found successfully");
+        response.put(MESSAGE_KEY, "Owned repositories found successfully");
         response.put("ownedRepositories", ownedRepositories);
 
         return ResponseEntity.ok(response);
@@ -118,7 +121,7 @@ public class RepositoryServiceImpl implements  RepositoryService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Contributed repositories found successfully");
+        response.put(MESSAGE_KEY, "Contributed repositories found successfully");
         response.put("contributedRepositories", contributedRepositories);
 
         return ResponseEntity.ok(response);

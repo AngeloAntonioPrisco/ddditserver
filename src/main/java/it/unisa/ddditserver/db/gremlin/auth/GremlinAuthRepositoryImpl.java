@@ -17,6 +17,8 @@ import java.util.Map;
 @Repository
 public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
 
+    private static final String USERNAME_KEY = "username";
+
     private final JanusConfig config;
     private Client client;
 
@@ -57,7 +59,7 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
         try {
             client.submit(query, Map.of(
                     "repoId", "unassignedRepoId",
-                    "username", username,
+                    USERNAME_KEY, username,
                     "password", password
             )).all().get();
 
@@ -72,7 +74,7 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
         String query = "g.V().hasLabel('user').has('username', username).valueMap('username', 'password')";
 
         try {
-            List<Result> results = client.submit(query, Map.of("username", username)).all().get();
+            List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username)).all().get();
 
             if (results.isEmpty()) {
                 throw new AuthException("User not found in JanusGraph");
@@ -81,7 +83,7 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
             @SuppressWarnings("unchecked")
             Map<Object, List<Object>> props = results.get(0).get(Map.class);
 
-            String fetchedUsername = props.get("username").get(0).toString();
+            String fetchedUsername = props.get(USERNAME_KEY).get(0).toString();
             String password = props.get("password").get(0).toString();
 
             return new UserDTO(fetchedUsername, password);
@@ -99,7 +101,7 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
         String query = "g.V().hasLabel('user').has('username', username).count()";
 
         try {
-            List<Result> results = client.submit(query, Map.of("username", username)).all().get();
+            List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username)).all().get();
 
             if (results.isEmpty()) {
                 return false;

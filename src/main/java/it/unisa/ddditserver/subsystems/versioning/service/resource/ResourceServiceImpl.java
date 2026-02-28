@@ -29,6 +29,8 @@ import java.util.Map;
 @Service
 public class ResourceServiceImpl implements  ResourceService {
 
+    private static final String MESSAGE_KEY = "message";
+
     private GremlinResourceRepository gremlinResourceRepository;
     private GremlinBranchRepository gremlinBranchRepository;
     private GremlinVersionRepository gremlinVersionRepository;
@@ -91,7 +93,7 @@ public class ResourceServiceImpl implements  ResourceService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Resource " + resourceName + " created successfully in " + repositoryName + " repository");
+        response.put(MESSAGE_KEY, "Resource " + resourceName + " created successfully in " + repositoryName + " repository");
 
         return ResponseEntity.ok(response);
     }
@@ -130,7 +132,7 @@ public class ResourceServiceImpl implements  ResourceService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Resources found successfully in " + repositoryName + " repository");
+        response.put(MESSAGE_KEY, "Resources found successfully in " + repositoryName + " repository");
         response.put("resources", resources);
 
         return ResponseEntity.ok(response);
@@ -185,7 +187,7 @@ public class ResourceServiceImpl implements  ResourceService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Version tree of " + resourceName + " resource in " + repositoryName + " repository retrieved successfully");
+        response.put(MESSAGE_KEY, "Version tree of " + resourceName + " resource in " + repositoryName + " repository retrieved successfully");
         response.put("versionTree", versionTree);
 
         return ResponseEntity.ok(response);
