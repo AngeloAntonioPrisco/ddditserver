@@ -17,8 +17,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/versions")
 public class VersionControllerImpl implements VersionController {
-    @Autowired
+    
     private VersionService versionService;
+
+    public VersionControllerImpl(VersionService versionService) {
+        this.versionService = versionService;
+    }
 
     private String extractToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
