@@ -38,7 +38,7 @@ public class ResourceValidatorImpl implements ResourceValidator {
 
     private static final int RESOURCE_NAME_MIN_LENGTH = 3;
     private static final int RESOURCE_NAME_MAX_LENGTH = 30;
-    private static final Pattern RESOURCE_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]+$");
+    private static final Pattern RESOURCE_NAME_PATTERN = Pattern.compile("^\\w+$");
 
     @Autowired
     public ResourceValidatorImpl(RepositoryValidator repositoryValidator, GremlinResourceRepository gremlinService) {
