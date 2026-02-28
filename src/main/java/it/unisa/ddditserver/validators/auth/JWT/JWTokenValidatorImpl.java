@@ -23,8 +23,11 @@ import java.util.Base64;
  */
 @Component
 public class JWTokenValidatorImpl implements JWTokenValidator {
-    @Autowired
     private CosmosAuthRepository cosmosAuthService;
+
+    public JWTokenValidatorImpl(CosmosAuthRepository cosmosAuthService) {
+        this.cosmosAuthService = cosmosAuthService;
+    }
 
     @Value("${JWT_SECRET}")
     public String jwtSecretBase64;
