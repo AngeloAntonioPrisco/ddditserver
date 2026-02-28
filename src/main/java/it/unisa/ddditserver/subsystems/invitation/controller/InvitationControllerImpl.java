@@ -8,7 +8,6 @@ import it.unisa.ddditserver.subsystems.invitation.exceptions.InvitationNotFoundE
 import it.unisa.ddditserver.subsystems.invitation.service.InvitationService;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
