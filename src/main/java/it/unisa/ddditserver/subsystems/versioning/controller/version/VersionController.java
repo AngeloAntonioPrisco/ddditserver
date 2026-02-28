@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
+import java.util.Map;
+
 /**
  * Controller interface for version endpoints.
  *
@@ -25,7 +27,7 @@ public interface VersionController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the version creation operation
      */
-    ResponseEntity<?> pushVersion(@ModelAttribute VersionDTO versionDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, String>> pushVersion(@ModelAttribute VersionDTO versionDTO, HttpServletRequest request);
 
     /**
      * Handles the request to retrieve a specific version resource.
@@ -43,5 +45,5 @@ public interface VersionController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity containing the version metadata or an error status
      */
-    ResponseEntity<?> showVersionMetadata(@ModelAttribute VersionDTO versionDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, Object>> showVersionMetadata(@ModelAttribute VersionDTO versionDTO, HttpServletRequest request);
 }
