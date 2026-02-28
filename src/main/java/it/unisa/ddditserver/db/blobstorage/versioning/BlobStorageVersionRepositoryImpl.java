@@ -14,6 +14,9 @@ import java.util.List;
 
 @Repository
 public class BlobStorageVersionRepositoryImpl implements BlobStorageVersionRepository {
+
+    private static final String PATH_SEPARATOR = "/";
+
     private final MinioConfig config;
     private MinioClient minioClient;
 
@@ -63,8 +66,6 @@ public class BlobStorageVersionRepositoryImpl implements BlobStorageVersionRepos
 
     @Override
     public String saveMaterial(VersionDTO versionDTO) {
-
-        private static final String PATH_SEPARATOR = "/";
 
         String basePath = versionDTO.getRepositoryName() + PATH_SEPARATOR +
                 versionDTO.getResourceName() + PATH_SEPARATOR +
