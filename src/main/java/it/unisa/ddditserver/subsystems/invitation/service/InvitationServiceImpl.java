@@ -22,16 +22,20 @@ import java.util.Map;
 
 @Service
 public class InvitationServiceImpl implements  InvitationService {
-    @Autowired
+    
     private GremlinInvitationRepository gremlinInvitationRepository;
-    @Autowired
     private GremlinRepositoryRepository gremlinRepositoryRepository;
-    @Autowired
     private JWTokenValidator jwTokenValidator;
-    @Autowired
     private UserValidator userValidator;
-    @Autowired
     private InvitationValidator invitationValidator;
+
+    public InvitationServiceImpl(GremlinInvitationRepository gremlinInvitationRepository, GremlinRepositoryRepository gremlinRepositoryRepository, InvitationValidator invitationValidator, JWTokenValidator jwTokenValidator, UserValidator userValidator) {
+        this.gremlinInvitationRepository = gremlinInvitationRepository;
+        this.gremlinRepositoryRepository = gremlinRepositoryRepository;
+        this.invitationValidator = invitationValidator;
+        this.jwTokenValidator = jwTokenValidator;
+        this.userValidator = userValidator;
+    }
 
     private void checkUserStatus(String repositoryName, String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
