@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class BlobStorageVersionRepositoryImplTest {
+ class BlobStorageVersionRepositoryImplTest {
 
     @Mock
     private MinioConfig config;
@@ -32,7 +32,7 @@ public class BlobStorageVersionRepositoryImplTest {
     private BlobStorageVersionRepositoryImpl repository;
 
     @BeforeEach
-    public void setUp() throws Exception {
+     void setUp() throws Exception {
         repository = new BlobStorageVersionRepositoryImpl(config);
 
         Field clientField = BlobStorageVersionRepositoryImpl.class.getDeclaredField("minioClient");
