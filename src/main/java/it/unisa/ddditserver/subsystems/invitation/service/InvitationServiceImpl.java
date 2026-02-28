@@ -22,6 +22,8 @@ import java.util.Map;
 @Service
 public class InvitationServiceImpl implements  InvitationService {
 
+    private static final String MESSAGE_KEY = "message";
+
     private GremlinInvitationRepository gremlinInvitationRepository;
     private GremlinRepositoryRepository gremlinRepositoryRepository;
     private JWTokenValidator jwTokenValidator;
@@ -82,7 +84,7 @@ public class InvitationServiceImpl implements  InvitationService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Invitation send successfully to " + toUsername + " for " + repositoryName +  " repository");
+        response.put(MESSAGE_KEY, "Invitation send successfully to " + toUsername + " for " + repositoryName +  " repository");
 
         return ResponseEntity.ok(response);
     }
@@ -123,7 +125,7 @@ public class InvitationServiceImpl implements  InvitationService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Invitation to " + repositoryName + " repository accepted successfully");
+        response.put(MESSAGE_KEY, "Invitation to " + repositoryName + " repository accepted successfully");
 
         return ResponseEntity.ok(response);
     }
@@ -145,7 +147,7 @@ public class InvitationServiceImpl implements  InvitationService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Pending invitations found successfully");
+        response.put(MESSAGE_KEY, "Pending invitations found successfully");
         response.put("invitations", pendingInvitations);
 
         return ResponseEntity.ok(response);
