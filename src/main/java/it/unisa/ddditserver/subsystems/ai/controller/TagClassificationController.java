@@ -1,6 +1,7 @@
 package it.unisa.ddditserver.subsystems.ai.controller;
 
 import org.springframework.http.ResponseEntity;
+import java.util.Map;
 
 /**
  * Controller interface for ai endpoints.
@@ -17,5 +18,5 @@ public interface TagClassificationController {
      *
      * @return a ResponseEntity indicating the result of the branch creation operation
      */
-    ResponseEntity<?> reloadModel();
+    ResponseEntity<Map<String, Object>> reloadModel();
 }
