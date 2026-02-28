@@ -26,18 +26,22 @@ import java.util.*;
 
 @Service
 public class VersionServiceImpl implements VersionService {
-    @Autowired
+
     private GremlinVersionRepository gremlinVersionRepository;
-    @Autowired
     private GremlinRepositoryRepository gremlinRepositoryRepository;
-    @Autowired
     private JWTokenValidator jwTokenValidator;
-    @Autowired
     private UserValidator userValidator;
-    @Autowired
     private VersionValidator versionValidator;
-    @Autowired
     private TagClassificationService tagClassificationService;
+
+    public VersionServiceImpl(GremlinRepositoryRepository gremlinRepositoryRepository, GremlinVersionRepository gremlinVersionRepository, JWTokenValidator jwTokenValidator, TagClassificationService tagClassificationService, UserValidator userValidator, VersionValidator versionValidator) {
+        this.gremlinRepositoryRepository = gremlinRepositoryRepository;
+        this.gremlinVersionRepository = gremlinVersionRepository;
+        this.jwTokenValidator = jwTokenValidator;
+        this.tagClassificationService = tagClassificationService;
+        this.userValidator = userValidator;
+        this.versionValidator = versionValidator;
+    }
 
     private void checkUserStatus(String repositoryName, String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
