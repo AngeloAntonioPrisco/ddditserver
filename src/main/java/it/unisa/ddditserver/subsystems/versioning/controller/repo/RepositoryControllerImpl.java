@@ -16,6 +16,10 @@ import java.util.Map;
 @RequestMapping("/repositories")
 public class RepositoryControllerImpl implements RepositoryController {
 
+    private static final String DETAILS_KEY = "details";
+
+    private static final String ERROR_KEY = "error";
+
     private RepositoryService repositoryService;
 
     public RepositoryControllerImpl(RepositoryService repositoryService) {
@@ -38,13 +42,13 @@ public class RepositoryControllerImpl implements RepositoryController {
             return repositoryService.createRepository(repositoryDTO, token);
         } catch (InvalidRepositoryNameException | ExistingRepositoryException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (RepositoryException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during repository creation", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during repository creation", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -56,13 +60,13 @@ public class RepositoryControllerImpl implements RepositoryController {
             return repositoryService.listRepositoriesOwned(token);
         } catch (NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (RepositoryException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during listing owned repositories", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during listing owned repositories", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -74,13 +78,13 @@ public class RepositoryControllerImpl implements RepositoryController {
             return repositoryService.listRepositoriesContributed(token);
         } catch (NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (RepositoryException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during listing contributed repositories", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during listing contributed repositories", DETAILS_KEY, e.getMessage()));
         }
     }
 }
