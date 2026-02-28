@@ -26,22 +26,16 @@ import static org.mockito.Mockito.when;
 public class RepositoryServiceBenchmark {
 
     private RepositoryServiceImpl service;
-
-    private GremlinRepositoryRepository gremlinService;
-    private JWTokenValidator jwTokenValidator;
-    private UserValidator userValidator;
-    private RepositoryValidator repositoryValidator;
-
     private RepositoryDTO repositoryDTO;
     private String validToken;
 
     @Setup(Level.Trial)
     public void setup() {
         // Stub only is used to not let Mockito's log to saturate the memory
-        gremlinService = Mockito.mock(GremlinRepositoryRepository.class, Mockito.withSettings().stubOnly());
-        jwTokenValidator = Mockito.mock(JWTokenValidator.class, Mockito.withSettings().stubOnly());
-        userValidator = Mockito.mock(UserValidator.class, Mockito.withSettings().stubOnly());
-        repositoryValidator = Mockito.mock(RepositoryValidator.class, Mockito.withSettings().stubOnly());
+        GremlinRepositoryRepository gremlinService = Mockito.mock(GremlinRepositoryRepository.class, Mockito.withSettings().stubOnly());
+        JWTokenValidator jwTokenValidator = Mockito.mock(JWTokenValidator.class, Mockito.withSettings().stubOnly());
+        UserValidator userValidator = Mockito.mock(UserValidator.class, Mockito.withSettings().stubOnly());
+        RepositoryValidator repositoryValidator = Mockito.mock(RepositoryValidator.class, Mockito.withSettings().stubOnly());
 
         service = new RepositoryServiceImpl(
                 gremlinService,
