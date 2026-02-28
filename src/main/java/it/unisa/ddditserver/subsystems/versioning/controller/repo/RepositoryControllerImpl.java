@@ -16,8 +16,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/repositories")
 public class RepositoryControllerImpl implements RepositoryController {
-    @Autowired
+
     private RepositoryService repositoryService;
+
+    public RepositoryControllerImpl(RepositoryService repositoryService) {
+        this.repositoryService = repositoryService;
+    }
 
     private String extractToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
