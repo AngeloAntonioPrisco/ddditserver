@@ -1,6 +1,5 @@
 package it.unisa.ddditserver.subsystems.ai.service;
 
-import it.unisa.ddditserver.subsystems.versioning.dto.BranchDTO;
 import it.unisa.ddditserver.subsystems.versioning.dto.version.VersionDTO;
 import java.util.List;
 
