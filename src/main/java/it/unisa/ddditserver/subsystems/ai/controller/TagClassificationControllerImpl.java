@@ -12,8 +12,12 @@ import java.util.Map;
 @Controller
 @RequestMapping("/ai")
 public class TagClassificationControllerImpl implements TagClassificationController {
-    @Autowired
+
     private TagClassificationService tagClassificationService;
+
+    public TagClassificationControllerImpl(TagClassificationService tagClassificationService) {
+        this.tagClassificationService = tagClassificationService;
+    }
 
     @Override
     @GetMapping("/reload")
