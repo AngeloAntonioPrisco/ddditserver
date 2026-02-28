@@ -26,6 +26,12 @@ import java.util.Map;
 @Repository
 public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
 
+    private static final String BNAME_KEY = "bName";
+
+    private static final String RES_NAME_KEY = "resName";
+
+    private static final String REPO_NAME_KEY = "repoName";
+
     private final JanusConfig config;
     private final CosmosVersionRepository cosmosService;
     private final BlobStorageVersionRepository blobStorageService;
@@ -72,9 +78,9 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
                     ".id()";
 
             List<Result> branchResults = client.submit(findBranchQuery, Map.of(
-                    "repoName", versionDTO.getRepositoryName(),
-                    "resName", versionDTO.getResourceName(),
-                    "bName", versionDTO.getBranchName())).all().get();
+                    REPO_NAME_KEY, versionDTO.getRepositoryName(),
+                    RES_NAME_KEY, versionDTO.getResourceName(),
+                    BNAME_KEY, versionDTO.getBranchName())).all().get();
 
             if (branchResults.isEmpty()) {
                 rollback(url, cosmosDocumentUrl, resourceType);
@@ -194,9 +200,9 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
                 ".valueMap('versionName')";
         try {
             List<Result> results = client.submit(query, Map.of(
-                    "repoName", branchDTO.getRepositoryName(),
-                    "resName", branchDTO.getResourceName(),
-                    "bName", branchDTO.getBranchName())).all().get();
+                    REPO_NAME_KEY, branchDTO.getRepositoryName(),
+                    RES_NAME_KEY, branchDTO.getResourceName(),
+                    BNAME_KEY, branchDTO.getBranchName())).all().get();
 
             List<VersionDTO> versions = new ArrayList<>();
             for (Result r : results) {
@@ -248,9 +254,9 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
 
     private Map<String, Object> getVersionParams(VersionDTO dto) {
         return Map.of(
-                "repoName", dto.getRepositoryName(),
-                "resName", dto.getResourceName(),
-                "bName", dto.getBranchName(),
+                REPO_NAME_KEY, dto.getRepositoryName(),
+                RES_NAME_KEY, dto.getResourceName(),
+                BNAME_KEY, dto.getBranchName(),
                 "vName", dto.getVersionName()
         );
     }
