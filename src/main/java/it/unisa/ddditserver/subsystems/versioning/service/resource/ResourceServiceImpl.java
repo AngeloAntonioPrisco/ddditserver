@@ -168,10 +168,8 @@ public class ResourceServiceImpl implements  ResourceService {
 
         try {
             List<BranchDTO> branches = gremlinBranchRepository.findBranchesByResource(resourceDTO);
-            List<String> branchNames =  new ArrayList<>();
 
             for (BranchDTO branch : branches) {
-                branchNames.add(branch.getBranchName());
 
                 List<VersionDTO> versions = gremlinVersionRepository.findVersionsByBranch(branch);
                 List<String> versionNames =  new ArrayList<>();
