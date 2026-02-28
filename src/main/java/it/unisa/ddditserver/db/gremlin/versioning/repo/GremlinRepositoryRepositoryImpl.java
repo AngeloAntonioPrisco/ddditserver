@@ -4,17 +4,14 @@ import it.unisa.ddditserver.db.gremlin.JanusConfig;
 import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
-import it.unisa.ddditserver.subsystems.versioning.exceptions.version.VersionException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
 import org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1;
-import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
