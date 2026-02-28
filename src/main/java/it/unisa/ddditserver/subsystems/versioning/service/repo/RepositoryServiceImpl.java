@@ -10,7 +10,6 @@ import it.unisa.ddditserver.validators.versioning.repo.RepositoryValidationDTO;
 import it.unisa.ddditserver.validators.versioning.repo.RepositoryValidator;
 import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
