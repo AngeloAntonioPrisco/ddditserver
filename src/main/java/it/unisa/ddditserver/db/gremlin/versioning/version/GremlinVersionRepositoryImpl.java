@@ -122,6 +122,7 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
 
             } catch (Exception e) {
             rollback(url, cosmosDocumentUrl, resourceType);
+            Thread.currentThread().interrupt();
             throw new VersionException("Error saving new version in JanusGraph: " + e.getMessage());
         }
     }
@@ -143,6 +144,7 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
             List<Result> results = client.submit(query, getVersionParams(versionDTO)).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new VersionException("Error checking version existence: " + e.getMessage());
         }
     }
@@ -177,7 +179,7 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
             
             return dto;
         } catch (Exception e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
             throw new VersionException("Error retrieving version: " + e.getMessage());
         }
     }
@@ -214,6 +216,7 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
             }
             return versions;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new VersionException("Error finding versions: " + e.getMessage());
         }
     }
@@ -241,6 +244,7 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
                         .toList();
             }
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new VersionException("Error retrieving file: " + e.getMessage());
         }
     }
