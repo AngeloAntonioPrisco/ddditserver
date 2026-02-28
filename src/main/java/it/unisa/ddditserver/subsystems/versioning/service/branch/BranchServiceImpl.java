@@ -16,7 +16,6 @@ import it.unisa.ddditserver.validators.versioning.branch.BranchValidationDTO;
 import it.unisa.ddditserver.validators.versioning.branch.BranchValidator;
 import it.unisa.ddditserver.validators.versioning.resource.ResourceValidationDTO;
 import it.unisa.ddditserver.validators.versioning.resource.ResourceValidator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
