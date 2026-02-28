@@ -29,22 +29,26 @@ import java.util.Map;
 
 @Service
 public class ResourceServiceImpl implements  ResourceService {
-    @Autowired
+
     private GremlinResourceRepository gremlinResourceRepository;
-    @Autowired
     private GremlinBranchRepository gremlinBranchRepository;
-    @Autowired
     private GremlinVersionRepository gremlinVersionRepository;
-    @Autowired
     private JWTokenValidator jwTokenValidator;
-    @Autowired
     private UserValidator userValidator;
-    @Autowired
     private RepositoryValidator repositoryValidator;
-    @Autowired
     private ResourceValidator resourceValidator;
-    @Autowired
     private GremlinRepositoryRepository gremlinRepositoryRepository;
+
+    public ResourceServiceImpl(GremlinBranchRepository gremlinBranchRepository, GremlinRepositoryRepository gremlinRepositoryRepository, GremlinResourceRepository gremlinResourceRepository, GremlinVersionRepository gremlinVersionRepository, JWTokenValidator jwTokenValidator, RepositoryValidator repositoryValidator, ResourceValidator resourceValidator, UserValidator userValidator) {
+        this.gremlinBranchRepository = gremlinBranchRepository;
+        this.gremlinRepositoryRepository = gremlinRepositoryRepository;
+        this.gremlinResourceRepository = gremlinResourceRepository;
+        this.gremlinVersionRepository = gremlinVersionRepository;
+        this.jwTokenValidator = jwTokenValidator;
+        this.repositoryValidator = repositoryValidator;
+        this.resourceValidator = resourceValidator;
+        this.userValidator = userValidator;
+    }
 
     private void checkUserStatus(String repositoryName, String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
