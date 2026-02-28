@@ -5,7 +5,6 @@ import jakarta.annotation.PreDestroy;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
-import org.apache.tinkerpop.gremlin.driver.*;
 import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import it.unisa.ddditserver.subsystems.auth.exceptions.AuthException;
 import jakarta.annotation.PostConstruct;
