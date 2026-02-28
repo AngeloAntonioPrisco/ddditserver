@@ -10,6 +10,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.mail.*;
 import jakarta.mail.internet.*;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Properties;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.assimp.AIMaterial;
@@ -149,16 +152,13 @@ public class TagClassificationServiceImpl implements TagClassificationService {
 
             Object rawOutput = result.get(0).getValue();
 
-            long[] output;
-            if (rawOutput instanceof long[]) {
-                output = (long[]) rawOutput;
-            } else if (rawOutput instanceof long[][]) {
-                output = ((long[][]) rawOutput)[0];
-            } else {
-                throw new TagClassificationException("Unexpected ONNX output type during classification");
-            }
-
-            return output;
+            return switch (rawOutput) {
+                case long[] output -> output;
+                case long[][] output -> output[0];
+                default -> throw new TagClassificationException(
+                        "Unexpected ONNX output type during classification"
+                );
+            };
         } catch (TagClassificationException e) {
             throw e;
         } catch (Exception e) {
@@ -184,9 +184,10 @@ public class TagClassificationServiceImpl implements TagClassificationService {
 
         PointerBuffer meshes = scene.mMeshes();
         for (int i = 0; i < scene.mNumMeshes(); i++) {
-            AIMesh mesh = AIMesh.create(meshes != null ? meshes.get(i) : 0);
-            vertexCount += mesh.mNumVertices();
-            faceCount += mesh.mNumFaces();
+            try (AIMesh mesh = AIMesh.create(meshes != null ? meshes.get(i) : 0)) {
+                vertexCount += mesh.mNumVertices();
+                faceCount += mesh.mNumFaces();
+            }
         }
 
         for (int i = 0; i < materialCount; i++) {
@@ -211,6 +212,10 @@ public class TagClassificationServiceImpl implements TagClassificationService {
         return features;
     }
 
+    public void cleanUp(Path path) throws IOException {
+        Files.delete(path);
+    }
+
     public ArrayList<String> classify(VersionDTO versionDTO) {
         MultipartFile mesh = versionDTO.getMesh();
 
@@ -228,9 +233,7 @@ public class TagClassificationServiceImpl implements TagClassificationService {
 
             Map<String, Double> features = extractFbxFeatures(tempFile);
 
-            if (!tempFile.delete()) {
-                throw new TagClassificationException("Error during deletion of multipart copy");
-            }
+            cleanUp(tempFile.toPath());
 
             float[] inputFeatures = new float[] {
                     features.get("vertex_count").floatValue(),
