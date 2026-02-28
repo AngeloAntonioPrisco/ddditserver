@@ -60,6 +60,7 @@ public class GremlinResourceRepositoryImpl implements GremlinResourceRepository 
                     "repoName", resourceDTO.getRepositoryName(),
                     "resName", resourceDTO.getResourceName())).all().get();
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new ResourceException("Error saving resource: " + e.getMessage());
         }
     }
@@ -74,6 +75,7 @@ public class GremlinResourceRepositoryImpl implements GremlinResourceRepository 
                     "resName", resourceDTO.getResourceName())).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new ResourceException("Error checking resource existence");
         }
     }
@@ -100,6 +102,7 @@ public class GremlinResourceRepositoryImpl implements GremlinResourceRepository 
 
             return resources;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new ResourceException("Error finding resources by repository in JanusGraph");
         }
     }
