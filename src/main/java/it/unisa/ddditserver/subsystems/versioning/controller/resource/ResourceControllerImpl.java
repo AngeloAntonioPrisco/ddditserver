@@ -18,6 +18,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/resources")
 public class ResourceControllerImpl implements ResourceController {
+
+    private static final String DETAILS_KEY = "details";
+
+    private static final String ERROR_KEY = "error";
+
     @Autowired
     private ResourceService resourceService;
 
@@ -39,13 +44,13 @@ public class ResourceControllerImpl implements ResourceController {
         } catch (RepositoryException | InvalidResourceNameException |
                  ExistingResourceException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (ResourceException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during resource creation", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during resource creation", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -58,13 +63,13 @@ public class ResourceControllerImpl implements ResourceController {
             return resourceService.listResourcesByRepository(repositoryDTO, token);
         } catch (RepositoryException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (ResourceException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during listing resources", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during listing resources", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -78,13 +83,13 @@ public class ResourceControllerImpl implements ResourceController {
         } catch (RepositoryException | InvalidResourceNameException |
                  ExistingResourceException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (ResourceException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during showing version tree", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during showing version tree", DETAILS_KEY, e.getMessage()));
         }
     }
 }
