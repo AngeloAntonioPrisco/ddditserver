@@ -22,6 +22,11 @@ import java.util.Map;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+
+    private static final String MESSAGE_KEY = "message";
+
+    private static final String USER_KEY = "User ";
+
     private GremlinAuthRepository gremlinService;
     private CosmosAuthRepository cosmosAuthRepository;
     private JWTokenValidator jwtTokenValidator;
@@ -94,7 +99,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "User " + username + " registered successfully");
+        response.put(MESSAGE_KEY, USER_KEY + username + " registered successfully");
         response.put("token", token);
 
         return ResponseEntity.ok(response);
@@ -132,7 +137,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "User " + username + " logged in successfully");
+        response.put(MESSAGE_KEY, USER_KEY + username + " logged in successfully");
         response.put("token", token);
 
         return ResponseEntity.ok(response);
@@ -154,7 +159,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "User " + retrievedUsername + " logged out successfully, token will be blacklisted");
+        response.put(MESSAGE_KEY, USER_KEY + retrievedUsername + " logged out successfully, token will be blacklisted");
 
         return ResponseEntity.ok(response);
     }
