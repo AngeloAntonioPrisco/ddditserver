@@ -65,6 +65,7 @@ public class GremlinBranchRepositoryImpl implements GremlinBranchRepository {
                     "resName", branchDTO.getResourceName(),
                     "bName", branchDTO.getBranchName())).all().get();
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new BranchException("Error creating branch: " + e.getMessage());
         }
     }
@@ -81,6 +82,7 @@ public class GremlinBranchRepositoryImpl implements GremlinBranchRepository {
                     "bName", branchDTO.getBranchName())).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new BranchException("Error checking branch existence: " + e.getMessage());
         }
     }
@@ -111,6 +113,7 @@ public class GremlinBranchRepositoryImpl implements GremlinBranchRepository {
 
             return branches;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new VersionException("Error finding branches by resource in JanusGraph");
         }
     }
