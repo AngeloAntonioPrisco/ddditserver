@@ -1,7 +1,6 @@
 package it.unisa.ddditserver.subsystems.ai.controller;
 
 import it.unisa.ddditserver.subsystems.ai.service.TagClassificationService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
