@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.Map;
+
 /**
  * Controller interface for repository endpoints.
  *
@@ -25,7 +27,7 @@ public interface RepositoryController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the repository creation operation
      */
-    ResponseEntity<?> createRepository(@RequestBody RepositoryDTO repositoryDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, String>> createRepository(@RequestBody RepositoryDTO repositoryDTO, HttpServletRequest request);
 
     /**
      * Handles the request to list all repositories owned by the authenticated user.
@@ -33,7 +35,7 @@ public interface RepositoryController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity containing the list of repositories owned by the user
      */
-    ResponseEntity<?> listOwnedRepositories(HttpServletRequest request);
+    ResponseEntity<Map<String, Object>> listOwnedRepositories(HttpServletRequest request);
 
     /**
      * Handles the request to list all repositories where the authenticated user is a contributor.
@@ -41,5 +43,5 @@ public interface RepositoryController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity containing the list of repositories the user contributes to
      */
-    ResponseEntity<?> listContributedRepositories(HttpServletRequest request);
+    ResponseEntity<Map<String, Object>> listContributedRepositories(HttpServletRequest request);
 }
