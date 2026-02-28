@@ -15,12 +15,9 @@ import java.util.List;
 
 @Repository
 public class BlobStorageVersionRepositoryImpl implements BlobStorageVersionRepository {
-
-    @Autowired
     private final MinioConfig config;
     private MinioClient minioClient;
 
-    @Autowired
     public BlobStorageVersionRepositoryImpl(MinioConfig config) {
         this.config = config;
     }
