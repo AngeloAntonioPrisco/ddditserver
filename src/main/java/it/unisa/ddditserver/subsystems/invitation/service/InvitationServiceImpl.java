@@ -22,7 +22,7 @@ import java.util.Map;
 
 @Service
 public class InvitationServiceImpl implements  InvitationService {
-    
+
     private GremlinInvitationRepository gremlinInvitationRepository;
     private GremlinRepositoryRepository gremlinRepositoryRepository;
     private JWTokenValidator jwTokenValidator;
