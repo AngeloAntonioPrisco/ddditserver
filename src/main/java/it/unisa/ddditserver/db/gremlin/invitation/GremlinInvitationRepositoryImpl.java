@@ -70,6 +70,7 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
                     TO_USERNAME_KEY, toUserDTO.getUsername(),
                     "repoName", repositoryDTO.getRepositoryName())).all().get();
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new InvitationException("Error saving invitation: " + e.getMessage());
         }
     }
@@ -86,6 +87,7 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
                     "repoName", repositoryDTO.getRepositoryName())).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new InvitationException("Error checking invitation existence: " + e.getMessage());
         }
     }
@@ -109,6 +111,7 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
                     TO_USERNAME_KEY, toUsername,
                     REPOSITORY_NAME_KEY, repositoryName)).all().get();
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new InvitationException("Error updating invitation status in JanusGraph");
         }
     }
@@ -131,6 +134,7 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
 
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new InvitationException("Error checking invitation status in JanusGraph");
         }
     }
@@ -167,7 +171,7 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
 
             return invitations;
         } catch (Exception e) {
-            e.printStackTrace(); 
+            Thread.currentThread().interrupt();
             throw new InvitationException("Error finding pending invitations in JanusGraph: " + e.getMessage());
         }
     }
