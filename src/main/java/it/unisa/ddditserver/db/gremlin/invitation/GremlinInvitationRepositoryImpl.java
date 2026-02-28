@@ -20,6 +20,12 @@ import java.util.Map;
 @Repository
 public class GremlinInvitationRepositoryImpl implements GremlinInvitationRepository {
 
+    private static final String TO_USERNAME_KEY = "toUsername";
+
+    private static final String REPOSITORY_NAME_KEY = "repositoryName";
+
+    private static final String FROM_USERNAME_KEY = "fromUsername";
+
     private final JanusConfig config;
     private Cluster cluster;
     private Client client;
@@ -60,8 +66,8 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
 
         try {
             client.submit(query, Map.of(
-                    "fromUsername", fromUserDTO.getUsername(),
-                    "toUsername", toUserDTO.getUsername(),
+                    FROM_USERNAME_KEY, fromUserDTO.getUsername(),
+                    TO_USERNAME_KEY, toUserDTO.getUsername(),
                     "repoName", repositoryDTO.getRepositoryName())).all().get();
         } catch (Exception e) {
             throw new InvitationException("Error saving invitation: " + e.getMessage());
@@ -75,8 +81,8 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
                 ".where(inV().hasLabel('user').has('username', toUsername)).count()";
         try {
             List<Result> results = client.submit(query, Map.of(
-                    "fromUsername", fromUserDTO.getUsername(),
-                    "toUsername", toUserDTO.getUsername(),
+                    FROM_USERNAME_KEY, fromUserDTO.getUsername(),
+                    TO_USERNAME_KEY, toUserDTO.getUsername(),
                     "repoName", repositoryDTO.getRepositoryName())).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
@@ -99,9 +105,9 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
 
         try {
             client.submit(query, Map.of(
-                    "fromUsername", fromUsername,
-                    "toUsername", toUsername,
-                    "repositoryName", repositoryName)).all().get();
+                    FROM_USERNAME_KEY, fromUsername,
+                    TO_USERNAME_KEY, toUsername,
+                    REPOSITORY_NAME_KEY, repositoryName)).all().get();
         } catch (Exception e) {
             throw new InvitationException("Error updating invitation status in JanusGraph");
         }
@@ -119,9 +125,9 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
 
         try {
             List<Result> results = client.submit(query, Map.of(
-                    "fromUsername", fromUsername,
-                    "toUsername", toUsername,
-                    "repositoryName", repositoryName)).all().get();
+                    FROM_USERNAME_KEY, fromUsername,
+                    TO_USERNAME_KEY, toUsername,
+                    REPOSITORY_NAME_KEY, repositoryName)).all().get();
 
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
@@ -141,7 +147,7 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
                 "  .by(__.select('e').values('repositoryName'))";
 
         try {
-            List<Result> results = client.submit(query, Map.of("toUsername", toUsername)).all().get();
+            List<Result> results = client.submit(query, Map.of(TO_USERNAME_KEY, toUsername)).all().get();
             List<InvitationDTO> invitations = new ArrayList<>();
 
             for (Result result : results) {
@@ -150,8 +156,8 @@ public class GremlinInvitationRepositoryImpl implements GremlinInvitationReposit
                     @SuppressWarnings("unchecked")
                     Map<String, Object> map = (Map<String, Object>) resultObj;
 
-                    String fromUsername = extractValue(map.get("fromUsername"));
-                    String repositoryName = extractValue(map.get("repositoryName"));
+                    String fromUsername = extractValue(map.get(FROM_USERNAME_KEY));
+                    String repositoryName = extractValue(map.get(REPOSITORY_NAME_KEY));
 
                     if (fromUsername != null && repositoryName != null) {
                         invitations.add(new InvitationDTO(fromUsername, repositoryName));
