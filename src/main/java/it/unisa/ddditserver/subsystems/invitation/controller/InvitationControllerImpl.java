@@ -18,8 +18,16 @@ import java.util.Map;
 @RestController
 @RequestMapping("/invitations")
 public class InvitationControllerImpl implements  InvitationController {
-    @Autowired
+
+    private static final String ERROR_KEY = "error";
+
+    private static final String DETAILS_KEY = "details";
+
     private InvitationService invitationService;
+
+    public InvitationControllerImpl(InvitationService invitationService) {
+        this.invitationService = invitationService;
+    }
 
     private String extractToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
@@ -40,15 +48,15 @@ public class InvitationControllerImpl implements  InvitationController {
                  AlreadyInvitedException  e) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (InvitationException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during sending invitation", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during sending invitation", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -63,15 +71,15 @@ public class InvitationControllerImpl implements  InvitationController {
                  InvitationNotFoundException e) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (InvitationException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during accepting invitation", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during accepting invitation", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -85,15 +93,15 @@ public class InvitationControllerImpl implements  InvitationController {
         } catch (NotLoggedUserException e) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (InvitationException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during listing pending invitations", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during listing pending invitations", DETAILS_KEY, e.getMessage()));
         }
     }
 }
