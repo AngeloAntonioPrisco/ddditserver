@@ -17,6 +17,10 @@ import java.util.Map;
 @RequestMapping("/versions")
 public class VersionControllerImpl implements VersionController {
 
+    private static final String DETAILS_KEY = "details";
+
+    private static final String ERROR_KEY = "error";
+
     private VersionService versionService;
 
     public VersionControllerImpl(VersionService versionService) {
@@ -43,13 +47,13 @@ public class VersionControllerImpl implements VersionController {
                  InvalidCommentException | InvalidMeshException |
                  InvalidMaterialException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (VersionException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during mesh version push", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during mesh version push", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -65,13 +69,13 @@ public class VersionControllerImpl implements VersionController {
                  InvalidCommentException | InvalidMeshException |
                  InvalidMaterialException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (VersionException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during version pull", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during version pull", DETAILS_KEY, e.getMessage()));
         }
     }
 
@@ -87,13 +91,13 @@ public class VersionControllerImpl implements VersionController {
                  InvalidCommentException | InvalidMeshException |
                  InvalidMaterialException | NotLoggedUserException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (VersionException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Unexpected error during metadata retrieve", "details", e.getMessage()));
+                    .body(Map.of(ERROR_KEY, "Unexpected error during metadata retrieve", DETAILS_KEY, e.getMessage()));
         }
     }
 }
