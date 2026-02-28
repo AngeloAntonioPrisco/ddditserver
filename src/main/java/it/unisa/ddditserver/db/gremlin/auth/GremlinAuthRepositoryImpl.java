@@ -64,7 +64,8 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
             )).all().get();
 
         } catch (Exception e) {
-            throw new AuthException("Error saving user in JanusGraph: " + e.getMessage());
+            Thread.currentThread().interrupt();
+            throw new AuthException("Error saving user in JanusGraph");
         }
     }
 
@@ -90,6 +91,7 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
         } catch (AuthException e) {
             throw e;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new AuthException("Error retrieving user from JanusGraph: " + e.getMessage());
         }
     }
@@ -110,6 +112,7 @@ public class GremlinAuthRepositoryImpl implements GremlinAuthRepository {
             long count = results.get(0).getLong();
             return count > 0;
         } catch (Exception e) {
+            Thread.currentThread().interrupt();
             throw new AuthException("Error checking user existence in JanusGraph: " + e.getMessage());
         }
     }
