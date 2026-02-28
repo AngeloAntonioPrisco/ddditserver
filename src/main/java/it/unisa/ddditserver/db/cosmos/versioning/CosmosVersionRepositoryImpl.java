@@ -17,7 +17,6 @@ import java.util.UUID;
 public class CosmosVersionRepositoryImpl implements CosmosVersionRepository {
 
     private final MongoConfig config;
-    private MongoClient mongoClient;
     private MongoCollection<Document> versionsCollection;
 
     @Autowired
@@ -27,7 +26,7 @@ public class CosmosVersionRepositoryImpl implements CosmosVersionRepository {
 
     @PostConstruct
     public void init() {
-        mongoClient = MongoClients.create(config.getConnectionString());
+        MongoClient mongoClient = MongoClients.create(config.getConnectionString());
         MongoDatabase database = mongoClient.getDatabase(config.getDatabaseName());
         versionsCollection = database.getCollection(config.getVersionsCollection());
     }
@@ -65,17 +64,16 @@ public class CosmosVersionRepositoryImpl implements CosmosVersionRepository {
         }
 
         Object dateObj = document.get("pushedAt");
-        LocalDateTime pushedAt;
-        
-        if (dateObj instanceof java.util.Date date) {
-            pushedAt = date.toInstant()
-                           .atZone(java.time.ZoneId.systemDefault())
-                           .toLocalDateTime();
-        } else if (dateObj instanceof String dateStr) {
-            pushedAt = LocalDateTime.parse(dateStr);
-        } else {
-            pushedAt = LocalDateTime.now();
-        }
+
+        LocalDateTime pushedAt = switch (dateObj) {
+            case java.util.Date date -> date.toInstant()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime();
+
+            case String dateStr -> LocalDateTime.parse(dateStr);
+
+            default -> LocalDateTime.now();
+        };
         
         return new VersionDTO(
                 null,

@@ -23,8 +23,11 @@ public class ResourceControllerImpl implements ResourceController {
 
     private static final String ERROR_KEY = "error";
 
-    @Autowired
     private ResourceService resourceService;
+
+    public ResourceControllerImpl(ResourceService resourceService) {
+        this.resourceService = resourceService;
+    }
 
     private String extractToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");

@@ -44,7 +44,7 @@ public class BranchValidatorImpl implements BranchValidator {
 
     private static final int BRANCH_NAME_MIN_LENGTH = 3;
     private static final int BRANCH_NAME_MAX_LENGTH = 30;
-    private static final Pattern BRANCH_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]+$");
+    private static final Pattern BRANCH_NAME_PATTERN = Pattern.compile("^\\w+$");
 
     @Autowired
     public BranchValidatorImpl(RepositoryValidator repositoryValidator,
