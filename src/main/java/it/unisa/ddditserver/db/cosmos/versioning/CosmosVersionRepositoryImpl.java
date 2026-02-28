@@ -64,7 +64,6 @@ public class CosmosVersionRepositoryImpl implements CosmosVersionRepository {
         }
 
         Object dateObj = document.get("pushedAt");
-        LocalDateTime pushedAt;
 
         LocalDateTime pushedAt = switch (dateObj) {
             case java.util.Date date -> date.toInstant()
