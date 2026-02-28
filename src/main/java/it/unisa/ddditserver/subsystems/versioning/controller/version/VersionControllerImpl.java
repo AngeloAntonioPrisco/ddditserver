@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/versions")
 public class VersionControllerImpl implements VersionController {
-    
+
     private VersionService versionService;
 
     public VersionControllerImpl(VersionService versionService) {
