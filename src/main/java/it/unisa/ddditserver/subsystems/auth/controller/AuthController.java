@@ -4,6 +4,7 @@ import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
+import java.util.Map;
 
 /**
  * Controller interface for authentication endpoints.
@@ -24,7 +25,7 @@ public interface AuthController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the signup operation
      */
-    ResponseEntity<?> signup(@RequestBody UserDTO userDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, String>> signup(@RequestBody UserDTO userDTO, HttpServletRequest request);
 
     /**
      * Handles the request to log in a user.
@@ -33,7 +34,7 @@ public interface AuthController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the login operation
      */
-    ResponseEntity<?> login(@RequestBody UserDTO userDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, String>> login(@RequestBody UserDTO userDTO, HttpServletRequest request);
 
     /**
      * Handles the request to log out the current user.
@@ -41,6 +42,6 @@ public interface AuthController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the logout operation
      */
-    ResponseEntity<?> logout(HttpServletRequest request);
+    ResponseEntity<Map<String, String>> logout(HttpServletRequest request);
 
 }
