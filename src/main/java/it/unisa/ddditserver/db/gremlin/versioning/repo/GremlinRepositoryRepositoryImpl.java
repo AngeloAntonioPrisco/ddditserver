@@ -19,6 +19,10 @@ import java.util.Map;
 @Repository
 public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryRepository {
 
+    private static final String REPOSITORY_NAME_KEY = "repositoryName";
+
+    private static final String USERNAME_KEY = "username";
+
     private final JanusConfig config;
     private Cluster cluster;
     private Client client;
@@ -87,13 +91,13 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                 ".dedup().valueMap('username')";
 
         try {
-            List<Result> results = client.submit(query, Map.of("repositoryName", repositoryName)).all().get();
+            List<Result> results = client.submit(query, Map.of(REPOSITORY_NAME_KEY, repositoryName)).all().get();
             List<UserDTO> contributors = new ArrayList<>();
 
             for (Result result : results) {
                 @SuppressWarnings("unchecked")
                 Map<String, List<Object>> props = (Map<String, List<Object>>) result.getObject();
-                String username = props.get("username").get(0).toString();
+                String username = props.get(USERNAME_KEY).get(0).toString();
                 contributors.add(new UserDTO(username, null));
             }
             return contributors;
@@ -111,7 +115,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                 ".out('CONTRIBUTES_TO').hasLabel('repository').has('repositoryName', repositoryName).count()";
 
         try {
-            List<Result> results = client.submit(query, Map.of("username", username, "repositoryName", repositoryName)).all().get();
+            List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username, REPOSITORY_NAME_KEY, repositoryName)).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
             throw new RepositoryException("Error checking contributor status in JanusGraph");
@@ -127,7 +131,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                 ".out('OWNS').hasLabel('repository').has('repositoryName', repositoryName).count()";
 
         try {
-            List<Result> results = client.submit(query, Map.of("username", username, "repositoryName", repositoryName)).all().get();
+            List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username, REPOSITORY_NAME_KEY, repositoryName)).all().get();
             return !results.isEmpty() && results.get(0).getLong() > 0;
         } catch (Exception e) {
             throw new RepositoryException("Error checking owner status in JanusGraph");
@@ -147,7 +151,7 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
                 ").iterate(); g.tx().commit();";
 
         try {
-            client.submit(query, Map.of("username", username, "repositoryName", repositoryName)).all().get();
+            client.submit(query, Map.of(USERNAME_KEY, username, REPOSITORY_NAME_KEY, repositoryName)).all().get();
         } catch (Exception e) {
             throw new RepositoryException("Error adding contributor in JanusGraph");
         }
@@ -159,12 +163,12 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
         String query = "g.V().hasLabel('user').has('username', username).out('OWNS').valueMap('repositoryName')";
 
         try {
-            List<Result> results = client.submit(query, Map.of("username", username)).all().get();
+            List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username)).all().get();
             List<RepositoryDTO> repositories = new ArrayList<>();
             for (Result result : results) {
                 @SuppressWarnings("unchecked")
                 Map<String, List<Object>> props = (Map<String, List<Object>>) result.getObject();
-                repositories.add(new RepositoryDTO(props.get("repositoryName").get(0).toString()));
+                repositories.add(new RepositoryDTO(props.get(REPOSITORY_NAME_KEY).get(0).toString()));
             }
             return repositories;
         } catch (Exception e) {
@@ -178,12 +182,12 @@ public class GremlinRepositoryRepositoryImpl implements GremlinRepositoryReposit
         String query = "g.V().hasLabel('user').has('username', username).out('CONTRIBUTES_TO').valueMap('repositoryName')";
 
         try {
-            List<Result> results = client.submit(query, Map.of("username", username)).all().get();
+            List<Result> results = client.submit(query, Map.of(USERNAME_KEY, username)).all().get();
             List<RepositoryDTO> repositories = new ArrayList<>();
             for (Result result : results) {
                 @SuppressWarnings("unchecked")
                 Map<String, List<Object>> props = (Map<String, List<Object>>) result.getObject();
-                repositories.add(new RepositoryDTO(props.get("repositoryName").get(0).toString()));
+                repositories.add(new RepositoryDTO(props.get(REPOSITORY_NAME_KEY).get(0).toString()));
             }
             return repositories;
         } catch (Exception e) {
