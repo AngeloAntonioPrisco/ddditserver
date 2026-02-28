@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.util.Map;
+
 /**
  * Controller interface for resource endpoints.
  *
@@ -26,7 +28,7 @@ public interface ResourceController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity indicating the result of the resource creation operation
      */
-    ResponseEntity<?> createResource(@RequestBody ResourceDTO resourceDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, String>> createResource(@RequestBody ResourceDTO resourceDTO, HttpServletRequest request);
 
     /**
      * Handles the request to list all resources contained in a repository.
@@ -35,7 +37,7 @@ public interface ResourceController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity containing the list of resources in the specified repository
      */
-    ResponseEntity<?> listResourcesByRepository(@RequestBody RepositoryDTO repositoryDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, Object>> listResourcesByRepository(@RequestBody RepositoryDTO repositoryDTO, HttpServletRequest request);
 
     /**
      * Handles the request to display the version tree of a resource.
@@ -44,5 +46,5 @@ public interface ResourceController {
      * @param request the HTTP servlet request object
      * @return a ResponseEntity containing the version tree of the specified resource
      */
-    ResponseEntity<?> showVersionTree(@RequestBody ResourceDTO resourceDTO, HttpServletRequest request);
+    ResponseEntity<Map<String, Object>> showVersionTree(@RequestBody ResourceDTO resourceDTO, HttpServletRequest request);
 }
