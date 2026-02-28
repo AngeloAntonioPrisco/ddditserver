@@ -25,18 +25,26 @@ import java.util.Map;
 
 @Service
 public class BranchServiceImpl implements BranchService {
-    @Autowired
     private GremlinBranchRepository gremlinService;
-    @Autowired
     private GremlinRepositoryRepository gremlinRepositoryRepository;
-    @Autowired
     private JWTokenValidator jwTokenValidator;
-    @Autowired
     private UserValidator userValidator;
-    @Autowired
     private ResourceValidator resourceValidator;
-    @Autowired
     private BranchValidator branchValidator;
+
+    public BranchServiceImpl(GremlinBranchRepository gremlinService,
+                             GremlinRepositoryRepository gremlinRepositoryRepository,
+                             JWTokenValidator jwTokenValidator,
+                             UserValidator userValidator,
+                             ResourceValidator resourceValidator,
+                             BranchValidator branchValidator) {
+        this.gremlinService = gremlinService;
+        this.gremlinRepositoryRepository = gremlinRepositoryRepository;
+        this.jwTokenValidator = jwTokenValidator;
+        this.userValidator = userValidator;
+        this.resourceValidator = resourceValidator;
+        this.branchValidator = branchValidator;
+    }
 
     private void checkUserStatus(String repositoryName, String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);

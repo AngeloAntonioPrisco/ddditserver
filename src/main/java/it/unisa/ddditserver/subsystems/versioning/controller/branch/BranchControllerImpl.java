@@ -24,8 +24,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/branches")
 public class BranchControllerImpl implements BranchController {
-    @Autowired
     private BranchService branchService;
+
+    public BranchControllerImpl(BranchService branchService) {
+        this.branchService = branchService;
+    }
 
     private String extractToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
