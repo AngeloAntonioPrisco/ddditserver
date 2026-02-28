@@ -16,8 +16,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/auth")
 public class AuthControllerImpl implements AuthController {
-    @Autowired
     private AuthService authService;
+
+    public AuthControllerImpl(AuthService authService) {
+        this.authService = authService;
+    }
 
     private String extractToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
