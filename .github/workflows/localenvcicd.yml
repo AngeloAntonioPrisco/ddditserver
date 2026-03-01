@@ -42,11 +42,12 @@ jobs:
       - name: Build and Resolve Dependencies
         run: mvn install -DskipTests
 
-      - name: Run Snyk test
+      - name: Run Snyk test (Debug Mode)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           snyk test \
+            -d \
             --severity-threshold=high \
             --sarif-file-output=snyk.sarif \
             --skip-unresolved \
