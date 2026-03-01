@@ -162,13 +162,13 @@ class CosmosAuthRepositoryImplTest {
         String token = tokenWithExp(new Date(System.currentTimeMillis() + 120_000));
 
         if ("FOUND".equals(findBehavior)) {
-            when(mongoTemplate.findById(eq(token), eq(BlacklistedTokenDTO.class)))
+            when(mongoTemplate.findById(token, BlacklistedTokenDTO.class))
                     .thenReturn(mock(BlacklistedTokenDTO.class));
         } else if ("NOTFOUND".equals(findBehavior)) {
-            when(mongoTemplate.findById(eq(token), eq(BlacklistedTokenDTO.class)))
+            when(mongoTemplate.findById(token, BlacklistedTokenDTO.class))
                     .thenReturn(null);
         } else { // THROWS
-            when(mongoTemplate.findById(eq(token), eq(BlacklistedTokenDTO.class)))
+            when(mongoTemplate.findById(token, BlacklistedTokenDTO.class))
                     .thenThrow(new RuntimeException("mongo down"));
         }
 
