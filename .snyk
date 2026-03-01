@@ -1,18 +1,15 @@
-# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+# Snyk (https://snyk.io) policy file
 version: v1.25.0
 ignore:
-  # Jackson-core 2.20.2 (da io.minio)
   SNYK-JAVA-COMFASTERXMLJACKSONCORE-15365924:
     - '*':
-        reason: 'This risk is managed by an internal validator that makes sure that the solution is not vulnerable'
+        reason: "This risk is managed by an internal validator that makes sure that the solution is not vulnerable"
         expires: 2026-06-01T00:00:00.000Z
-  # Commons-lang 2.6 (da JanusGraph)
   SNYK-JAVA-COMMONSLANG-10734077:
     - '*':
-        reason: 'Legacy dependency of JanusGraph that can't be updated, the solution should be to change to a newer technology'
+        reason: "Legacy dependency of JanusGraph that can't be updated, the solution should be to change to a newer technology"
         expires: 2026-06-01T00:00:00.000Z
-  # Jackson-core 3.0.4 (da Spring Boot 4)
   SNYK-JAVA-TOOLSJACKSONCORE-15365915:
     - '*':
-        reason: 'This risk has been evaluated as acceptable'
+        reason: "This risk has been evaluated as acceptable"
         expires: 2026-06-01T00:00:00.000Z
