@@ -265,10 +265,13 @@ public class VersionServiceImpl implements VersionService {
         try {
             versionDTO = gremlinVersionRepository.findVersionByBranch(versionDTO);
         } catch (Exception e) {
+            Map<String, Object> errorResponse = Map.of(
+                    "error", "Metadata not found"
+            );
 
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Metadata not found");
-            return new ResponseEntity(errorResponse, HttpStatus.NOT_FOUND);
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(errorResponse);
         }
 
         Map<String, Object> response = new HashMap<>();
