@@ -1,0 +1,15 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+ignore:
+  SNYK-JAVA-COMFASTERXMLJACKSONCORE-15365924:
+    - '*':
+        reason: "This risk is managed by an internal validator that makes sure that the solution is not vulnerable"
+        expires: 2026-06-01T00:00:00.000Z
+  SNYK-JAVA-COMMONSLANG-10734077:
+    - '*':
+        reason: "Legacy dependency of JanusGraph that can't be updated, the solution should be to change to a newer technology"
+        expires: 2026-06-01T00:00:00.000Z
+  SNYK-JAVA-TOOLSJACKSONCORE-15365915:
+    - '*':
+        reason: "This risk has been evaluated as acceptable"
+        expires: 2026-06-01T00:00:00.000Z
