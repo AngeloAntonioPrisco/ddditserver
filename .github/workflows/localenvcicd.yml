@@ -36,15 +36,23 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build with Maven
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Build and Resolve Dependencies
         run: mvn install -DskipTests
 
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/maven@master
+      - name: Run Snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test --severity-threshold=high --sarif-file-output=snyk.sarif
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+          sarif_file: snyk.sarif
 
   sonarqube-analysis:
     runs-on: ubuntu-latest
