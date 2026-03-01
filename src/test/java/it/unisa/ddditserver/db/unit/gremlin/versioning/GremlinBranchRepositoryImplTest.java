@@ -1,4 +1,4 @@
-package it.unisa.ddditserver.db.unit.gremlin.versioning.branch;
+package it.unisa.ddditserver.db.unit.gremlin.versioning;
 
 import it.unisa.ddditserver.db.gremlin.JanusConfig;
 import it.unisa.ddditserver.db.gremlin.versioning.branch.GremlinBranchRepositoryImpl;
