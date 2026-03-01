@@ -82,6 +82,7 @@ class GremlinInvitationRepositoryImplTest {
                 f.setAccessible(true);
                 return f.get(obj);
             } catch (NoSuchFieldException ignored) {
+                // for empty Objects
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
