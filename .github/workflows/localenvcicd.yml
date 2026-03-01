@@ -22,37 +22,34 @@ jobs:
           GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
-
+          
   snyk-security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Install Snyk CLI
-        uses: snyk/actions/setup@master
-
-      - name: Make Maven Wrapper executable
-        run: chmod +x mvnw
-
-      - name: Build and Resolve Dependencies
-        run: ./mvnw install -DskipTests
-
-      - name: Run Snyk test
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          snyk test \
-            --severity-threshold=high \
-            --sarif-file-output=snyk.sarif \
-            --skip-unresolved
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+  
+        - name: Set up JDK 21
+          uses: actions/setup-java@v4
+          with:
+            java-version: '21'
+            distribution: 'temurin'
+            cache: maven
+  
+        - name: Install Snyk CLI
+          uses: snyk/actions/setup@master
+  
+        - name: Make Maven Wrapper executable
+          run: chmod +x mvnw
+  
+        - name: Build and Resolve Dependencies
+          run: ./mvnw install -DskipTests
+  
+        - name: Run Snyk test
+          env:
+            SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          run: |
+            snyk test --severity-threshold=high --skip-unresolved
 
   sonarqube-analysis:
     runs-on: ubuntu-latest
