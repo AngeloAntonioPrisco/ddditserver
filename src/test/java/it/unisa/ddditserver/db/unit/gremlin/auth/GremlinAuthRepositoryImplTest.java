@@ -145,7 +145,7 @@ class GremlinAuthRepositoryImplTest {
             );
 
             Result r = mock(Result.class);
-            when(r.get(eq(Map.class))).thenReturn(props);
+            when(r.get(Map.class)).thenReturn(props);
 
             stubSubmitAllGetReturns(List.of(r));
         }
