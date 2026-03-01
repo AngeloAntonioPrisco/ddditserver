@@ -36,6 +36,9 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
 
@@ -47,7 +50,6 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           snyk test \
-            -d \
             --severity-threshold=high \
             --sarif-file-output=snyk.sarif \
             --skip-unresolved
