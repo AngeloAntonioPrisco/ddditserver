@@ -167,12 +167,9 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
             dto.setComment(safeExtractString(props.get("comment")));
 
             String dateStr = safeExtractString(props.get("pushedAt"));
+
             if (dateStr != null) {
-                try {
-                    dto.setPushedAt(LocalDateTime.parse(dateStr));
-                } catch (Exception e) {
-                    dto.setPushedAt(LocalDateTime.now());
-                }
+                dto.setPushedAt(parseOrNow(dateStr));
             } else if (dto.getPushedAt() == null) {
                 dto.setPushedAt(LocalDateTime.now());
             }
@@ -181,6 +178,18 @@ public class GremlinVersionRepositoryImpl implements GremlinVersionRepository {
         } catch (Exception e) {
             Thread.currentThread().interrupt();
             throw new VersionException("Error retrieving version: " + e.getMessage());
+        }
+    }
+
+    private LocalDateTime parseOrNow(String dateStr) {
+        if (dateStr == null) {
+            return LocalDateTime.now();
+        }
+
+        try {
+            return LocalDateTime.parse(dateStr);
+        } catch (Exception e) {
+            return LocalDateTime.now();
         }
     }
 
