@@ -1,7 +1,6 @@
-package it.unisa.ddditserver.service;
+package it.unisa.ddditserver.validators.auth.user;
 
 import it.unisa.ddditserver.db.gremlin.auth.GremlinAuthRepository;
-import it.unisa.ddditserver.validators.auth.user.UserValidatorImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
