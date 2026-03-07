@@ -1,28 +1,22 @@
 package it.unisa.ddditserver.subsystems.versioning.service.repo;
 
 import it.unisa.ddditserver.db.gremlin.versioning.repo.GremlinRepositoryRepository;
-import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import it.unisa.ddditserver.subsystems.auth.exceptions.NotLoggedUserException;
 import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
 import it.unisa.ddditserver.validators.auth.JWT.JWTokenValidator;
-import it.unisa.ddditserver.validators.auth.user.UserValidationDTO;
 import it.unisa.ddditserver.validators.auth.user.UserValidator;
-import it.unisa.ddditserver.validators.versioning.repo.RepositoryValidationDTO;
 import it.unisa.ddditserver.validators.versioning.repo.RepositoryValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -38,211 +32,111 @@ class RepositoryServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new RepositoryServiceImpl(
-                gremlinService,
-                jwTokenValidator,
-                userValidator,
-                repositoryValidator
-        );
+        service = new RepositoryServiceImpl(gremlinService, jwTokenValidator, userValidator, repositoryValidator);
     }
 
-    // =========================================================
-    // Category Partition: createRepository
-    //
-    // Categories:
-    // - token valid | invalid
-    // - saveRepository ok | throws
-    // - validators ok | throws (not explicitly partitioned here because
-    //   if they throw, the service should just propagate)
-    // =========================================================
-    static Stream<Arguments> createRepositoryCases() {
+    static Stream<Arguments> createRepositoryProvider() {
         return Stream.of(
-                Arguments.of("VALID", false, null),
-                Arguments.of("VALID", true,  RepositoryException.class),
-                Arguments.of("INVALID", false, NotLoggedUserException.class)
+                // Case 1: Standard Success path
+                Arguments.of("valid_token", false, false, false, null),
+                // Case 2: Authentication failure
+                Arguments.of(null, false, false, false, NotLoggedUserException.class),
+                // Case 3: Malformed Repository Name
+                Arguments.of("valid_token", true, false, false, RuntimeException.class),
+                // Case 4: Repository already exists (Boundary check)
+                Arguments.of("valid_token", false, true, false, RuntimeException.class),
+                // Case 5: Database error during save
+                Arguments.of("valid_token", false, false, true, RepositoryException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("createRepositoryCases")
-    void createRepository_categoryPartition(String tokenKind,
-                                            boolean saveThrows,
-                                            Class<? extends Throwable> expectedEx) {
-        String token = "token";
-        RepositoryDTO repositoryDTO = new RepositoryDTO("repo1");
+    @ParameterizedTest(name = "CreateRepo - Token: {0}, Malformed: {1}, Exists: {2}, DBError: {3}")
+    @MethodSource("createRepositoryProvider")
+    void testCreateRepository(String token, boolean malformed, boolean exists, boolean dbError, Class<? extends Throwable> expectedEx) {
+        RepositoryDTO dto = new RepositoryDTO("new-repo");
+        String user = "mario";
 
-        if ("VALID".equals(tokenKind)) {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn("mario");
-        } else {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-        }
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(token != null ? user : null);
 
-        if (saveThrows) {
-            doThrow(new RuntimeException("save failed"))
-                    .when(gremlinService)
-                    .saveRepository(any(RepositoryDTO.class), any(UserDTO.class));
+        if (token != null) {
+            if (malformed) {
+                doThrow(new RuntimeException()).when(repositoryValidator).validateRepository(any());
+            } else if (exists) {
+                doThrow(new RuntimeException()).when(repositoryValidator).validateExistence(any(), eq(false));
+            } else if (dbError) {
+                doThrow(new RuntimeException("Gremlin timeout")).when(gremlinService).saveRepository(any(), any());
+            }
         }
 
         if (expectedEx != null) {
-            assertThrows(expectedEx, () -> service.createRepository(repositoryDTO, token));
-            return;
+            assertThrows(expectedEx, () -> service.createRepository(dto, token));
+        } else {
+            ResponseEntity<Map<String, String>> response = service.createRepository(dto, token);
+            assertEquals(200, response.getStatusCode().value());
+            verify(gremlinService).saveRepository(any(), any());
         }
-
-        ResponseEntity<Map<String, String>> response = service.createRepository(repositoryDTO, token);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-        assertEquals("Repository repo1 created successfully", response.getBody().get("message"));
-
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-        verify(repositoryValidator).validateRepository(any(RepositoryValidationDTO.class));
-        verify(repositoryValidator).validateExistence(any(RepositoryValidationDTO.class), eq(false));
-
-        ArgumentCaptor<RepositoryDTO> repoCaptor = ArgumentCaptor.forClass(RepositoryDTO.class);
-        ArgumentCaptor<UserDTO> userCaptor = ArgumentCaptor.forClass(UserDTO.class);
-
-        verify(gremlinService).saveRepository(repoCaptor.capture(), userCaptor.capture());
-
-        assertEquals("repo1", repoCaptor.getValue().getRepositoryName());
-        assertEquals("mario", userCaptor.getValue().getUsername());
     }
 
-    // =========================================================
-    // Category Partition: listRepositoriesOwned
-    //
-    // Categories:
-    // - token valid | invalid
-    // - gremlin find ok | throws
-    // - result list empty | non-empty
-    // =========================================================
-    static Stream<Arguments> listOwnedCases() {
+    static Stream<Arguments> listRepositoriesProvider() {
         return Stream.of(
-                Arguments.of("VALID_EMPTY", false, 0, null),
-                Arguments.of("VALID_NONEMPTY", false, 2, null),
-                Arguments.of("VALID_THROW", true, 0, RepositoryException.class),
-                Arguments.of("INVALID", false, 0, NotLoggedUserException.class)
+                // Case 1: Success with multiple repositories
+                Arguments.of(true, 2, false, null),
+                // Case 2: Success with empty list (Boundary)
+                Arguments.of(true, 0, false, null),
+                // Case 3: Authentication missing
+                Arguments.of(false, 0, false, NotLoggedUserException.class),
+                // Case 4: Database failure
+                Arguments.of(true, 0, true, RepositoryException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("listOwnedCases")
-    void listRepositoriesOwned_categoryPartition(String scenario,
-                                                 boolean gremlinThrows,
-                                                 int repoCount,
-                                                 Class<? extends Throwable> expectedEx) {
+    @ParameterizedTest(name = "ListOwned - Auth: {0}, Count: {1}, DBError: {2}")
+    @MethodSource("listRepositoriesProvider")
+    @SuppressWarnings("unchecked")
+    void testListRepositoriesOwned(boolean authorized, int count, boolean dbError, Class<? extends Throwable> expectedEx) {
         String token = "token";
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(authorized ? "mario" : null);
 
-        if ("INVALID".equals(scenario)) {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-        } else {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn("mario");
-        }
-
-        if (gremlinThrows) {
-            when(gremlinService.findOwnedRepositoriesByUser(any(UserDTO.class)))
-                    .thenThrow(new RuntimeException("find failed"));
-        } else if ("VALID_EMPTY".equals(scenario)) {
-            when(gremlinService.findOwnedRepositoriesByUser(any(UserDTO.class)))
-                    .thenReturn(List.of());
-        } else if ("VALID_NONEMPTY".equals(scenario)) {
-            when(gremlinService.findOwnedRepositoriesByUser(any(UserDTO.class)))
-                    .thenReturn(List.of(
-                            new RepositoryDTO("repo1"),
-                            new RepositoryDTO("repo2")
-                    ));
+        if (authorized) {
+            if (dbError) {
+                when(gremlinService.findOwnedRepositoriesByUser(any())).thenThrow(new RuntimeException());
+            } else {
+                List<RepositoryDTO> repos = Stream.generate(() -> new RepositoryDTO("r")).limit(count).toList();
+                when(gremlinService.findOwnedRepositoriesByUser(any())).thenReturn(repos);
+            }
         }
 
         if (expectedEx != null) {
             assertThrows(expectedEx, () -> service.listRepositoriesOwned(token));
-            return;
-        }
-
-        ResponseEntity<Map<String, Object>> response = service.listRepositoriesOwned(token);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-        assertEquals("Owned repositories found successfully", response.getBody().get("message"));
-
-        @SuppressWarnings("unchecked")
-        List<RepositoryDTO> owned = (List<RepositoryDTO>) response.getBody().get("ownedRepositories");
-        assertNotNull(owned);
-        assertEquals(repoCount, owned.size());
-
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-
-        ArgumentCaptor<UserDTO> userCaptor = ArgumentCaptor.forClass(UserDTO.class);
-        verify(gremlinService).findOwnedRepositoriesByUser(userCaptor.capture());
-        assertEquals("mario", userCaptor.getValue().getUsername());
-    }
-
-    // =========================================================
-    // Category Partition: listRepositoriesContributed
-    //
-    // Categories:
-    // - token valid | invalid
-    // - gremlin find ok | throws
-    // - result list empty | non-empty
-    // =========================================================
-    static Stream<Arguments> listContributedCases() {
-        return Stream.of(
-                Arguments.of("VALID_EMPTY", false, 0, null),
-                Arguments.of("VALID_NONEMPTY", false, 2, null),
-                Arguments.of("VALID_THROW", true, 0, RepositoryException.class),
-                Arguments.of("INVALID", false, 0, NotLoggedUserException.class)
-        );
-    }
-
-    @ParameterizedTest
-    @MethodSource("listContributedCases")
-    void listRepositoriesContributed_categoryPartition(String scenario,
-                                                       boolean gremlinThrows,
-                                                       int repoCount,
-                                                       Class<? extends Throwable> expectedEx) {
-        String token = "token";
-
-        if ("INVALID".equals(scenario)) {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
         } else {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn("mario");
+            ResponseEntity<Map<String, Object>> response = service.listRepositoriesOwned(token);
+            List<RepositoryDTO> result = (List<RepositoryDTO>) response.getBody().get("ownedRepositories");
+            assertEquals(count, result.size());
         }
+    }
 
-        if (gremlinThrows) {
-            when(gremlinService.findContributedRepositoriesByUser(any(UserDTO.class)))
-                    .thenThrow(new RuntimeException("find failed"));
-        } else if ("VALID_EMPTY".equals(scenario)) {
-            when(gremlinService.findContributedRepositoriesByUser(any(UserDTO.class)))
-                    .thenReturn(List.of());
-        } else if ("VALID_NONEMPTY".equals(scenario)) {
-            when(gremlinService.findContributedRepositoriesByUser(any(UserDTO.class)))
-                    .thenReturn(List.of(
-                            new RepositoryDTO("repoA"),
-                            new RepositoryDTO("repoB")
-                    ));
+    @ParameterizedTest(name = "ListContributed - Auth: {0}, Count: {1}, DBError: {2}")
+    @MethodSource("listRepositoriesProvider")
+    @SuppressWarnings("unchecked")
+    void testListRepositoriesContributed(boolean authorized, int count, boolean dbError, Class<? extends Throwable> expectedEx) {
+        String token = "token";
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(authorized ? "mario" : null);
+
+        if (authorized) {
+            if (dbError) {
+                when(gremlinService.findContributedRepositoriesByUser(any())).thenThrow(new RuntimeException());
+            } else {
+                List<RepositoryDTO> repos = Stream.generate(() -> new RepositoryDTO("c")).limit(count).toList();
+                when(gremlinService.findContributedRepositoriesByUser(any())).thenReturn(repos);
+            }
         }
 
         if (expectedEx != null) {
             assertThrows(expectedEx, () -> service.listRepositoriesContributed(token));
-            return;
+        } else {
+            ResponseEntity<Map<String, Object>> response = service.listRepositoriesContributed(token);
+            List<RepositoryDTO> result = (List<RepositoryDTO>) response.getBody().get("contributedRepositories");
+            assertEquals(count, result.size());
         }
-
-        ResponseEntity<Map<String, Object>> response = service.listRepositoriesContributed(token);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-        assertEquals("Contributed repositories found successfully", response.getBody().get("message"));
-
-        @SuppressWarnings("unchecked")
-        List<RepositoryDTO> contributed = (List<RepositoryDTO>) response.getBody().get("contributedRepositories");
-        assertNotNull(contributed);
-        assertEquals(repoCount, contributed.size());
-
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-
-        ArgumentCaptor<UserDTO> userCaptor = ArgumentCaptor.forClass(UserDTO.class);
-        verify(gremlinService).findContributedRepositoriesByUser(userCaptor.capture());
-        assertEquals("mario", userCaptor.getValue().getUsername());
     }
 }

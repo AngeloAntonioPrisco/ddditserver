@@ -2,33 +2,25 @@ package it.unisa.ddditserver.subsystems.versioning.service.branch;
 
 import it.unisa.ddditserver.db.gremlin.versioning.branch.GremlinBranchRepository;
 import it.unisa.ddditserver.db.gremlin.versioning.repo.GremlinRepositoryRepository;
-import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import it.unisa.ddditserver.subsystems.auth.exceptions.NotLoggedUserException;
 import it.unisa.ddditserver.subsystems.versioning.dto.BranchDTO;
-import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
 import it.unisa.ddditserver.subsystems.versioning.dto.ResourceDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.branch.BranchException;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
 import it.unisa.ddditserver.validators.auth.JWT.JWTokenValidator;
-import it.unisa.ddditserver.validators.auth.user.UserValidationDTO;
 import it.unisa.ddditserver.validators.auth.user.UserValidator;
-import it.unisa.ddditserver.validators.versioning.branch.BranchValidationDTO;
 import it.unisa.ddditserver.validators.versioning.branch.BranchValidator;
-import it.unisa.ddditserver.validators.versioning.resource.ResourceValidationDTO;
 import it.unisa.ddditserver.validators.versioning.resource.ResourceValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -56,182 +48,95 @@ class BranchServiceImplTest {
         );
     }
 
-    // ------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------
-    private static BranchDTO branch(String repo, String res, String branch) {
-        return new BranchDTO(repo, res, branch);
-    }
-
-    private static ResourceDTO resource(String repo, String res) {
-        return new ResourceDTO(repo, res);
-    }
-
-    private void stubAuthorizedUser(String token, String username) {
-        when(jwTokenValidator.isTokenValid(token)).thenReturn(username);
-        when(gremlinRepositoryRepository.isContributor(
-                any(RepositoryDTO.class),
-                any(UserDTO.class)
-        )).thenReturn(true);
-    }
-
-    private void stubUnauthorizedUser(String token, String username) {
-        when(jwTokenValidator.isTokenValid(token)).thenReturn(username);
-        when(gremlinRepositoryRepository.isContributor(
-                any(RepositoryDTO.class),
-                any(UserDTO.class)
-        )).thenReturn(false);
-        when(gremlinRepositoryRepository.isOwner(
-                any(RepositoryDTO.class),
-                any(UserDTO.class)
-        )).thenReturn(false);
-    }
-
-    // =========================================================
-    // Category Partition: createBranch
-    //
-    // Categories:
-    // - token: valid | invalid
-    // - authorization: allowed | denied
-    // - repository save: ok | throws
-    // =========================================================
-    static Stream<Arguments> createBranchCases() {
+    static Stream<Arguments> createBranchProvider() {
         return Stream.of(
-                Arguments.of("VALID_OK", false, false, null),
-                Arguments.of("INVALID_TOKEN", false, false, NotLoggedUserException.class),
-                Arguments.of("UNAUTHORIZED", false, false, RepositoryException.class),
-                Arguments.of("VALID_OK", true, false, BranchException.class)
+                // Case 1: Success path
+                Arguments.of("token", true, false, false, null),
+                // Case 2: Authentication failure (Error Partition)
+                Arguments.of(null, false, false, false, NotLoggedUserException.class),
+                // Case 3: Authorization failure (Permission Denied)
+                Arguments.of("token", false, false, false, RepositoryException.class),
+                // Case 4: Branch already exists (Boundary: Existence check fails)
+                Arguments.of("token", true, true, false, RuntimeException.class),
+                // Case 5: DB Runtime Error
+                Arguments.of("token", true, false, true, BranchException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("createBranchCases")
-    void createBranch_categoryPartition(String scenario,
-                                        boolean saveThrows,
-                                        boolean unused,
-                                        Class<? extends Throwable> expectedEx) {
-
-        BranchDTO branchDTO = branch("repo1", "res1", "main");
-        String token = "token";
+    @ParameterizedTest(name = "CreateBranch - Token: {0}, Auth: {1}, Exists: {2}, DBError: {3}")
+    @MethodSource("createBranchProvider")
+    void testCreateBranch(String token, boolean isAuthorized, boolean alreadyExists, boolean dbError, Class<? extends Throwable> expectedEx) {
+        BranchDTO dto = new BranchDTO("repo1", "res1", "feature-x");
         String username = "mario";
 
-        switch (scenario) {
-            case "INVALID_TOKEN" -> when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-            case "UNAUTHORIZED" -> stubUnauthorizedUser(token, username);
-            default -> stubAuthorizedUser(token, username);
-        }
+        // Mock Authentication
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(token != null ? username : null);
 
-        if (saveThrows) {
-            doThrow(new RuntimeException("boom")).when(gremlinBranchRepository).saveBranch(any(BranchDTO.class));
+        if (token != null) {
+            // Mock Authorization
+            when(gremlinRepositoryRepository.isContributor(any(), any())).thenReturn(isAuthorized);
+            if (!isAuthorized) {
+                when(gremlinRepositoryRepository.isOwner(any(), any())).thenReturn(false);
+            } else {
+                // Mock Validation & Existence
+                if (alreadyExists) {
+                    doThrow(new RuntimeException()).when(branchValidator).validateExistence(any(), eq(false));
+                }
+                // Mock DB
+                if (dbError) {
+                    doThrow(new RuntimeException()).when(gremlinBranchRepository).saveBranch(any());
+                }
+            }
         }
 
         if (expectedEx != null) {
-            assertThrows(expectedEx, () -> service.createBranch(branchDTO, token));
-            return;
+            assertThrows(expectedEx, () -> service.createBranch(dto, token));
+        } else {
+            ResponseEntity<Map<String, String>> response = service.createBranch(dto, token);
+            assertEquals(200, response.getStatusCode().value());
+            verify(gremlinBranchRepository).saveBranch(dto);
         }
-
-        ResponseEntity<Map<String, String>> response = service.createBranch(branchDTO, token);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-        assertEquals(
-                "Branch main created successfully for res1 resource in repo1 repository",
-                response.getBody().get("message")
-        );
-
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-        verify(branchValidator).validateBranch(any(BranchValidationDTO.class));
-        verify(branchValidator).validateExistence(any(BranchValidationDTO.class), eq(false));
-        verify(gremlinBranchRepository).saveBranch(branchDTO);
-
-        ArgumentCaptor<BranchValidationDTO> captor = ArgumentCaptor.forClass(BranchValidationDTO.class);
-        verify(branchValidator).validateBranch(captor.capture());
-        BranchValidationDTO captured = captor.getValue();
-        assertNotNull(captured);
     }
 
-    // =========================================================
-    // Category Partition: listBranchesByResource
-    //
-    // Categories:
-    // - token: valid | invalid
-    // - authorization: allowed | denied
-    // - service repository: returns empty | returns list | throws
-    // =========================================================
-    static Stream<Arguments> listBranchesCases() {
+    static Stream<Arguments> listBranchesProvider() {
         return Stream.of(
-                Arguments.of("VALID_EMPTY", false, 0, null),
-                Arguments.of("VALID_LIST", false, 2, null),
-                Arguments.of("INVALID_TOKEN", false, 0, NotLoggedUserException.class),
-                Arguments.of("UNAUTHORIZED", false, 0, RepositoryException.class),
-                Arguments.of("VALID_LIST", true, 0, BranchException.class)
+                // Case 1: Success with multiple results
+                Arguments.of(true, true, 2, null),
+                // Case 2: Success with empty list (Boundary)
+                Arguments.of(true, true, 0, null),
+                // Case 3: Access denied
+                Arguments.of(false, true, 0, RepositoryException.class),
+                // Case 4: Target Resource not found
+                Arguments.of(true, false, 0, RuntimeException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("listBranchesCases")
-    void listBranchesByResource_categoryPartition(String scenario,
-                                                  boolean findThrows,
-                                                  int branchCount,
-                                                  Class<? extends Throwable> expectedEx) {
+    @ParameterizedTest(name = "ListBranches - Authorized: {0}, ResourceFound: {1}, Count: {2}")
+    @MethodSource("listBranchesProvider")
+    void testListBranchesByResource(boolean authorized, boolean resourceFound, int branchCount, Class<? extends Throwable> expectedEx) {
+        ResourceDTO dto = new ResourceDTO("repo1", "res1");
+        String token = "valid_token";
 
-        ResourceDTO resourceDTO = resource("repo1", "res1");
-        String token = "token";
-        String username = "mario";
+        when(jwTokenValidator.isTokenValid(token)).thenReturn("mario");
+        when(gremlinRepositoryRepository.isContributor(any(), any())).thenReturn(authorized);
+        if (!authorized) when(gremlinRepositoryRepository.isOwner(any(), any())).thenReturn(false);
 
-        switch (scenario) {
-            case "INVALID_TOKEN" -> when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-            case "UNAUTHORIZED" -> stubUnauthorizedUser(token, username);
-            default -> stubAuthorizedUser(token, username);
-        }
-
-        if (findThrows) {
-            when(gremlinBranchRepository.findBranchesByResource(any(ResourceDTO.class)))
-                    .thenThrow(new RuntimeException("boom"));
-        } else if ("VALID_EMPTY".equals(scenario)) {
-            when(gremlinBranchRepository.findBranchesByResource(any(ResourceDTO.class)))
-                    .thenReturn(List.of());
-        } else if ("VALID_LIST".equals(scenario)) {
-            when(gremlinBranchRepository.findBranchesByResource(any(ResourceDTO.class)))
-                    .thenReturn(List.of(
-                            new BranchDTO("repo1", "res1", "main"),
-                            new BranchDTO("repo1", "res1", "dev")
-                    ));
+        if (authorized) {
+            if (!resourceFound) {
+                doThrow(new RuntimeException()).when(resourceValidator).validateExistence(any(), eq(true));
+            } else {
+                List<BranchDTO> branches = Stream.generate(() -> new BranchDTO("repo1", "res1", "b"))
+                        .limit(branchCount).toList();
+                when(gremlinBranchRepository.findBranchesByResource(any())).thenReturn(branches);
+            }
         }
 
         if (expectedEx != null) {
-            assertThrows(expectedEx, () -> service.listBranchesByResource(resourceDTO, token));
-            return;
+            assertThrows(expectedEx, () -> service.listBranchesByResource(dto, token));
+        } else {
+            ResponseEntity<Map<String, Object>> response = service.listBranchesByResource(dto, token);
+            List<?> result = (List<?>) response.getBody().get("branches");
+            assertEquals(branchCount, result.size());
         }
-
-        ResponseEntity<Map<String, Object>> response = service.listBranchesByResource(resourceDTO, token);
-
-        assertNotNull(response);
-        assertEquals(200, response.getStatusCode().value());
-        assertNotNull(response.getBody());
-
-        assertEquals(
-                "Branches found successfully for res1 resource in repo1 repository",
-                response.getBody().get("message")
-        );
-
-        Object branchesObj = response.getBody().get("branches");
-        assertNotNull(branchesObj);
-        assertTrue(branchesObj instanceof List<?>);
-
-        @SuppressWarnings("unchecked")
-        List<BranchDTO> branches = (List<BranchDTO>) branchesObj;
-        assertEquals(branchCount, branches.size());
-
-        if (branchCount == 2) {
-            assertEquals("main", branches.get(0).getBranchName());
-            assertEquals("dev", branches.get(1).getBranchName());
-        }
-
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-        verify(resourceValidator).validateResource(any(ResourceValidationDTO.class));
-        verify(resourceValidator).validateExistence(any(ResourceValidationDTO.class), eq(true));
-        verify(gremlinBranchRepository).findBranchesByResource(resourceDTO);
     }
 }

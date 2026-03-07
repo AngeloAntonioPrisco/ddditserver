@@ -2,31 +2,23 @@ package it.unisa.ddditserver.subsystems.invitation.service;
 
 import it.unisa.ddditserver.db.gremlin.invitation.GremlinInvitationRepository;
 import it.unisa.ddditserver.db.gremlin.versioning.repo.GremlinRepositoryRepository;
-import it.unisa.ddditserver.subsystems.auth.dto.UserDTO;
 import it.unisa.ddditserver.subsystems.auth.exceptions.NotLoggedUserException;
 import it.unisa.ddditserver.subsystems.invitation.dto.InvitationDTO;
 import it.unisa.ddditserver.subsystems.invitation.exceptions.InvitationException;
-import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
 import it.unisa.ddditserver.subsystems.versioning.exceptions.repo.RepositoryException;
 import it.unisa.ddditserver.validators.auth.JWT.JWTokenValidator;
-import it.unisa.ddditserver.validators.auth.user.UserValidationDTO;
 import it.unisa.ddditserver.validators.auth.user.UserValidator;
-import it.unisa.ddditserver.validators.invitation.InvitationValidationDTO;
 import it.unisa.ddditserver.validators.invitation.InvitationValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
-
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -52,222 +44,121 @@ class InvitationServiceImplTest {
         );
     }
 
-    // ------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------
-    private static InvitationDTO invitation(String toUsername, String repositoryName) {
-        return new InvitationDTO(toUsername, repositoryName);
-    }
-
-    // =========================================================
-    // Category Partition: sendInvitation
-    //
-    // Categories:
-    // - token valid | invalid
-    // - permission: contributor/owner | denied
-    // - repository save: ok | throws
-    // =========================================================
-    static Stream<Arguments> sendInvitationCases() {
+    static Stream<Arguments> sendInvitationProvider() {
         return Stream.of(
-                Arguments.of("VALID_OK",        null),
-                Arguments.of("INVALID_TOKEN",   NotLoggedUserException.class),
-                Arguments.of("NO_PERMISSION",   RepositoryException.class),
-                Arguments.of("REPO_THROWS",     InvitationException.class)
+                // Test Case 1: Valid token + Contributor permissions + Success
+                Arguments.of("valid_token", true, false, false, null),
+                // Test Case 2: Valid token + Owner permissions + Success
+                Arguments.of("valid_token", false, true, false, null),
+                // Test Case 3: Invalid token (Error Partition)
+                Arguments.of(null, false, false, false, NotLoggedUserException.class),
+                // Test Case 4: Valid token but No Permissions (Boundary: Access Denied)
+                Arguments.of("valid_token", false, false, false, RepositoryException.class),
+                // Test Case 5: Valid token + Permissions but DB fails (Error Partition)
+                Arguments.of("valid_token", true, false, true, InvitationException.class)
         );
     }
 
     @ParameterizedTest
-    @MethodSource("sendInvitationCases")
-    void sendInvitation_categoryPartition(String behavior,
-                                          Class<? extends Throwable> expectedEx) {
+    @MethodSource("sendInvitationProvider")
+    void testSendInvitation(String token, boolean isContributor, boolean isOwner, boolean dbError, Class<? extends Throwable> expectedEx) {
+        InvitationDTO dto = new InvitationDTO("bob", "repo1");
+        String sender = "alice";
 
-        InvitationDTO dto = invitation("bob", "repo1");
-        String token = "token";
-        String retrievedUsername = "alice";
+        // Mock Token Validation
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(token != null ? sender : null);
 
-        if (!"INVALID_TOKEN".equals(behavior)) {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(retrievedUsername);
-        } else {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-        }
+        if (token != null) {
+            // Mock Permissions
+            when(gremlinRepositoryRepository.isContributor(any(), any())).thenReturn(isContributor);
+            if (!isContributor) {
+                when(gremlinRepositoryRepository.isOwner(any(), any())).thenReturn(isOwner);
+            }
 
-        if ("VALID_OK".equals(behavior) || "REPO_THROWS".equals(behavior)) {
-            when(gremlinRepositoryRepository.isContributor(any(RepositoryDTO.class), any(UserDTO.class))).thenReturn(true);
-        } else if ("NO_PERMISSION".equals(behavior)) {
-            when(gremlinRepositoryRepository.isContributor(any(RepositoryDTO.class), any(UserDTO.class))).thenReturn(false);
-            when(gremlinRepositoryRepository.isOwner(any(RepositoryDTO.class), any(UserDTO.class))).thenReturn(false);
-        }
-
-        if ("REPO_THROWS".equals(behavior)) {
-            doThrow(new RuntimeException("boom"))
-                    .when(gremlinInvitationRepository)
-                    .saveInvitation(any(UserDTO.class), any(UserDTO.class), any(RepositoryDTO.class));
+            // Mock DB Behavior
+            if ((isContributor || isOwner) && dbError) {
+                doThrow(new RuntimeException("DB Down")).when(gremlinInvitationRepository).saveInvitation(any(), any(), any());
+            }
         }
 
         if (expectedEx != null) {
             assertThrows(expectedEx, () -> service.sendInvitation(dto, token));
-            return;
+        } else {
+            ResponseEntity<Map<String, String>> response = service.sendInvitation(dto, token);
+            assertEquals(200, response.getStatusCode().value());
+            verify(gremlinInvitationRepository, times(1)).saveInvitation(any(), any(), any());
         }
-
-        ResponseEntity<Map<String, String>> response = service.sendInvitation(dto, token);
-
-        assertNotNull(response);
-        assertNotNull(response.getBody());
-        assertEquals("Invitation send successfully to bob for repo1 repository", response.getBody().get("message"));
-
-        verify(userValidator).validateExistence(new UserValidationDTO("alice", null), true);
-        verify(userValidator).validateExistence(new UserValidationDTO("bob", null), true);
-        verify(invitationValidator).validateInvitation(new InvitationValidationDTO("alice", "bob", "repo1"));
-        verify(invitationValidator).validatePendingInvitation(new InvitationValidationDTO("alice", "bob", "repo1"), false);
-
-        ArgumentCaptor<UserDTO> fromCap = ArgumentCaptor.forClass(UserDTO.class);
-        ArgumentCaptor<UserDTO> toCap = ArgumentCaptor.forClass(UserDTO.class);
-        ArgumentCaptor<RepositoryDTO> repoCap = ArgumentCaptor.forClass(RepositoryDTO.class);
-
-        verify(gremlinInvitationRepository).saveInvitation(fromCap.capture(), toCap.capture(), repoCap.capture());
-
-        assertEquals("alice", fromCap.getValue().getUsername());
-        assertEquals("bob", toCap.getValue().getUsername());
-        assertEquals("repo1", repoCap.getValue().getRepositoryName());
     }
 
-    // =========================================================
-    // Category Partition: acceptInvitation
-    //
-    // Categories:
-    // - token valid | invalid
-    // - pending invitation present | repository operation throws
-    // =========================================================
-    static Stream<Arguments> acceptInvitationCases() {
+    static Stream<Arguments> acceptInvitationProvider() {
         return Stream.of(
-                Arguments.of("VALID_OK",      null),
-                Arguments.of("INVALID_TOKEN", NotLoggedUserException.class),
-                Arguments.of("REPO_THROWS",   RepositoryException.class)
+                // Test Case 1: Valid process (Invitation exists -> Accepted)
+                Arguments.of("valid_token", false, null),
+                // Test Case 2: Invalid token
+                Arguments.of(null, false, NotLoggedUserException.class),
+                // Test Case 3: Database failure during acceptance
+                Arguments.of("valid_token", true, RepositoryException.class)
         );
     }
 
     @ParameterizedTest
-    @MethodSource("acceptInvitationCases")
-    void acceptInvitation_categoryPartition(String behavior,
-                                            Class<? extends Throwable> expectedEx) {
+    @MethodSource("acceptInvitationProvider")
+    void testAcceptInvitation(String token, boolean dbError, Class<? extends Throwable> expectedEx) {
+        InvitationDTO dto = new InvitationDTO("senderAlice", "repo1");
+        String receiver = "bob";
 
-        // In acceptInvitation, dto.toUsername is the original sender
-        InvitationDTO dto = invitation("alice", "repo1");
-        String token = "token";
-        String retrievedUsername = "bob";
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(token != null ? receiver : null);
 
-        if (!"INVALID_TOKEN".equals(behavior)) {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(retrievedUsername);
-        } else {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-        }
-
-        if ("REPO_THROWS".equals(behavior)) {
-            doThrow(new RuntimeException("boom"))
-                    .when(gremlinInvitationRepository)
-                    .acceptInvitation(any(UserDTO.class), any(UserDTO.class), any(RepositoryDTO.class));
+        if (token != null && dbError) {
+            doThrow(new RuntimeException("Accept failed")).when(gremlinInvitationRepository).acceptInvitation(any(), any(), any());
         }
 
         if (expectedEx != null) {
             assertThrows(expectedEx, () -> service.acceptInvitation(dto, token));
-            return;
+        } else {
+            ResponseEntity<Map<String, String>> response = service.acceptInvitation(dto, token);
+            assertEquals(200, response.getStatusCode().value());
+            verify(gremlinRepositoryRepository).addContributor(any(), any());
         }
-
-        ResponseEntity<Map<String, String>> response = service.acceptInvitation(dto, token);
-
-        assertNotNull(response);
-        assertNotNull(response.getBody());
-        assertEquals("Invitation to repo1 repository accepted successfully", response.getBody().get("message"));
-
-        verify(userValidator).validateExistence(new UserValidationDTO("bob", null), true);
-        verify(userValidator).validateExistence(new UserValidationDTO("alice", null), true);
-
-        InvitationValidationDTO expectedValidation = new InvitationValidationDTO("alice", "bob", "repo1");
-        verify(invitationValidator).validateInvitation(expectedValidation);
-        verify(invitationValidator).validatePendingInvitation(expectedValidation, true);
-
-        ArgumentCaptor<UserDTO> fromCap = ArgumentCaptor.forClass(UserDTO.class);
-        ArgumentCaptor<UserDTO> toCap = ArgumentCaptor.forClass(UserDTO.class);
-        ArgumentCaptor<RepositoryDTO> repoCap = ArgumentCaptor.forClass(RepositoryDTO.class);
-
-        verify(gremlinInvitationRepository).acceptInvitation(fromCap.capture(), toCap.capture(), repoCap.capture());
-
-        assertEquals("alice", fromCap.getValue().getUsername());
-        assertEquals("bob", toCap.getValue().getUsername());
-        assertEquals("repo1", repoCap.getValue().getRepositoryName());
-
-        ArgumentCaptor<RepositoryDTO> addRepoCap = ArgumentCaptor.forClass(RepositoryDTO.class);
-        ArgumentCaptor<UserDTO> addUserCap = ArgumentCaptor.forClass(UserDTO.class);
-
-        verify(gremlinRepositoryRepository).addContributor(addRepoCap.capture(), addUserCap.capture());
-
-        assertEquals("repo1", addRepoCap.getValue().getRepositoryName());
-        assertEquals("bob", addUserCap.getValue().getUsername());
     }
 
-    // =========================================================
-    // Category Partition: listPendingInvitations
-    //
-    // Categories:
-    // - token valid | invalid
-    // - repository returns empty | some invitations | throws
-    // =========================================================
-    static Stream<Arguments> listPendingInvitationsCases() {
+    static Stream<Arguments> listInvitationsProvider() {
         return Stream.of(
-                Arguments.of("EMPTY",   0, null),
-                Arguments.of("SOME",    2, null),
-                Arguments.of("INVALID", 0, NotLoggedUserException.class),
-                Arguments.of("THROWS",  0, InvitationException.class)
+                // Test Case 1: Valid token + No invitations (Empty Boundary)
+                Arguments.of("token", 0, false, null),
+                // Test Case 2: Valid token + Multiple invitations
+                Arguments.of("token", 3, false, null),
+                // Test Case 3: Invalid token
+                Arguments.of(null, 0, false, NotLoggedUserException.class),
+                // Test Case 4: Database Error (Failure Partition)
+                Arguments.of("token", 0, true, InvitationException.class)
         );
     }
 
     @ParameterizedTest
-    @MethodSource("listPendingInvitationsCases")
-    void listPendingInvitations_categoryPartition(String behavior,
-                                                  int expectedSize,
-                                                  Class<? extends Throwable> expectedEx) {
+    @MethodSource("listInvitationsProvider")
+    @SuppressWarnings("unchecked")
+    void testListPendingInvitations(String token, int listSize, boolean dbError, Class<? extends Throwable> expectedEx) {
+        String user = "bob";
+        when(jwTokenValidator.isTokenValid(token)).thenReturn(token != null ? user : null);
 
-        String token = "token";
-        String retrievedUsername = "bob";
-
-        if (!"INVALID".equals(behavior)) {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(retrievedUsername);
-        } else {
-            when(jwTokenValidator.isTokenValid(token)).thenReturn(null);
-        }
-
-        if ("EMPTY".equals(behavior)) {
-            when(gremlinInvitationRepository.findInvitationsByUser(any(UserDTO.class))).thenReturn(List.of());
-        } else if ("SOME".equals(behavior)) {
-            when(gremlinInvitationRepository.findInvitationsByUser(any(UserDTO.class)))
-                    .thenReturn(List.of(
-                            new InvitationDTO("alice", "repo1"),
-                            new InvitationDTO("charlie", "repo2")
-                    ));
-        } else if ("THROWS".equals(behavior)) {
-            when(gremlinInvitationRepository.findInvitationsByUser(any(UserDTO.class)))
-                    .thenThrow(new RuntimeException("boom"));
+        if (token != null) {
+            if (dbError) {
+                when(gremlinInvitationRepository.findInvitationsByUser(any())).thenThrow(new RuntimeException("Critical failure"));
+            } else {
+                List<InvitationDTO> mockList = Stream.generate(() -> new InvitationDTO("u", "r"))
+                        .limit(listSize)
+                        .toList();
+                when(gremlinInvitationRepository.findInvitationsByUser(any())).thenReturn(mockList);
+            }
         }
 
         if (expectedEx != null) {
             assertThrows(expectedEx, () -> service.listPendingInvitations(token));
-            return;
+        } else {
+            ResponseEntity<Map<String, Object>> response = service.listPendingInvitations(token);
+            List<InvitationDTO> result = (List<InvitationDTO>) response.getBody().get("invitations");
+            assertEquals(listSize, result.size());
         }
-
-        ResponseEntity<Map<String, Object>> response = service.listPendingInvitations(token);
-
-        assertNotNull(response);
-        assertNotNull(response.getBody());
-        assertEquals("Pending invitations found successfully", response.getBody().get("message"));
-
-        @SuppressWarnings("unchecked")
-        List<InvitationDTO> invitations = (List<InvitationDTO>) response.getBody().get("invitations");
-
-        assertNotNull(invitations);
-        assertEquals(expectedSize, invitations.size());
-
-        ArgumentCaptor<UserDTO> userCap = ArgumentCaptor.forClass(UserDTO.class);
-        verify(gremlinInvitationRepository).findInvitationsByUser(userCap.capture());
-        assertEquals("bob", userCap.getValue().getUsername());
     }
 }

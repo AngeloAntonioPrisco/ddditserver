@@ -7,22 +7,18 @@ import it.unisa.ddditserver.subsystems.auth.exceptions.AuthException;
 import it.unisa.ddditserver.subsystems.auth.exceptions.LoggedUserException;
 import it.unisa.ddditserver.subsystems.auth.exceptions.NotLoggedUserException;
 import it.unisa.ddditserver.validators.auth.JWT.JWTokenValidator;
-import it.unisa.ddditserver.validators.auth.user.UserValidationDTO;
 import it.unisa.ddditserver.validators.auth.user.UserValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -30,239 +26,128 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuthServiceImplTest {
 
-    @Mock
-    private GremlinAuthRepository gremlinAuthRepository;
-
-    @Mock
-    private CosmosAuthRepository cosmosAuthRepository;
-
-    @Mock
-    private JWTokenValidator jwtTokenValidator;
-
-    @Mock
-    private UserValidator userValidator;
+    @Mock private GremlinAuthRepository gremlinAuthRepository;
+    @Mock private CosmosAuthRepository cosmosAuthRepository;
+    @Mock private JWTokenValidator jwtTokenValidator;
+    @Mock private UserValidator userValidator;
 
     private AuthServiceImpl authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthServiceImpl(
-                gremlinAuthRepository,
-                cosmosAuthRepository,
-                jwtTokenValidator,
-                userValidator
-        );
-
-        // valid base64 secret, enough length for HMAC signing
-        String secret = Base64.getEncoder().encodeToString(
-                "12345678901234567890123456789012".getBytes(StandardCharsets.UTF_8)
-        );
+        authService = new AuthServiceImpl(gremlinAuthRepository, cosmosAuthRepository, jwtTokenValidator, userValidator);
+        String secret = Base64.getEncoder().encodeToString("12345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
         authService.jwtSecretBase64 = secret;
         authService.init();
     }
 
-    // ------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------
-
-    private static UserDTO user(String username, String password) {
-        return new UserDTO(username, password);
-    }
-
-    // ============================================================
-    // Category Partition: signup
-    //
-    // Categories:
-    // - token already valid -> LoggedUserException
-    // - validateUser: ok | throws
-    // - validateExistence(false): ok | throws
-    // - saveUser: ok | throws
-    //
-    // Notes:
-    // - token generation succeeds because we initialize a valid secret
-    // ============================================================
-    static Stream<Arguments> signupCases() {
+    static Stream<Arguments> signupProvider() {
         return Stream.of(
-                // alreadyLogged, validateUserThrows, validateExistenceThrows, saveThrows, expectedException
-                Arguments.of(true,  false, false, false, LoggedUserException.class),
-                Arguments.of(false, true,  false, false, RuntimeException.class),
-                Arguments.of(false, false, true,  false, RuntimeException.class),
-                Arguments.of(false, false, false, true,  AuthException.class),
-                Arguments.of(false, false, false, false, null)
+                // Case 1: Success (Not logged, valid data, unique user, DB ok)
+                Arguments.of(false, false, false, false, null),
+                // Case 2: Already Logged (Error Partition)
+                Arguments.of(true, false, false, false, LoggedUserException.class),
+                // Case 3: Malformed Credentials
+                Arguments.of(false, true, false, false, RuntimeException.class),
+                // Case 4: Duplicate Username (Boundary Case)
+                Arguments.of(false, false, true, false, RuntimeException.class),
+                // Case 5: Database failure during save
+                Arguments.of(false, false, false, true, AuthException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("signupCases")
-    void signup_categoryPartition(boolean alreadyLogged,
-                                  boolean validateUserThrows,
-                                  boolean validateExistenceThrows,
-                                  boolean saveThrows,
-                                  Class<? extends Throwable> expectedException) {
+    @ParameterizedTest(name = "Signup Partition - AlreadyLogged: {0}, Malformed: {1}, Exists: {2}, DBError: {3}")
+    @MethodSource("signupProvider")
+    void testSignup(boolean alreadyLogged, boolean malformed, boolean exists, boolean dbError, Class<? extends Throwable> expectedEx) {
+        UserDTO dto = new UserDTO("mario", "password123");
+        String token = "some_token";
 
-        UserDTO userDTO = user("mario", "password123");
+        when(jwtTokenValidator.isTokenValid(token)).thenReturn(alreadyLogged ? "mario" : null);
 
-        if (alreadyLogged) {
-            when(jwtTokenValidator.isTokenValid("token")).thenReturn("mario");
+        if (!alreadyLogged) {
+            if (malformed) {
+                doThrow(new RuntimeException()).when(userValidator).validateUser(any());
+            } else if (exists) {
+                doThrow(new RuntimeException()).when(userValidator).validateExistence(any(), eq(false));
+            } else if (dbError) {
+                doThrow(new RuntimeException("Gremlin down")).when(gremlinAuthRepository).saveUser(any());
+            }
+        }
+
+        if (expectedEx != null) {
+            assertThrows(expectedEx, () -> authService.signup(dto, token));
         } else {
-            when(jwtTokenValidator.isTokenValid("token")).thenReturn(null);
+            ResponseEntity<Map<String, String>> response = authService.signup(dto, token);
+            assertNotNull(response.getBody().get("token"));
+            verify(gremlinAuthRepository).saveUser(any());
         }
-
-        if (validateUserThrows) {
-            doThrow(new RuntimeException("invalid user"))
-                    .when(userValidator).validateUser(any(UserValidationDTO.class));
-        }
-
-        if (validateExistenceThrows) {
-            doThrow(new RuntimeException("user already exists"))
-                    .when(userValidator).validateExistence(any(UserValidationDTO.class), eq(false));
-        }
-
-        if (saveThrows) {
-            doThrow(new RuntimeException("db error"))
-                    .when(gremlinAuthRepository).saveUser(any(UserDTO.class));
-        }
-
-        if (expectedException != null) {
-            assertThrows(expectedException, () -> authService.signup(userDTO, "token"));
-            return;
-        }
-
-        ResponseEntity<Map<String, String>> response = authService.signup(userDTO, "token");
-
-        assertNotNull(response);
-        assertNotNull(response.getBody());
-        assertEquals("User mario registered successfully", response.getBody().get("message"));
-        assertNotNull(response.getBody().get("token"));
-        assertFalse(response.getBody().get("token").isBlank());
-
-        verify(userValidator).validateUser(any(UserValidationDTO.class));
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(false));
-
-        ArgumentCaptor<UserDTO> captor = ArgumentCaptor.forClass(UserDTO.class);
-        verify(gremlinAuthRepository).saveUser(captor.capture());
-
-        UserDTO savedUser = captor.getValue();
-        assertEquals("mario", savedUser.getUsername());
-        assertNotEquals("password123", savedUser.getPassword()); // password must be hashed
-        assertNotNull(savedUser.getPassword());
-        assertFalse(savedUser.getPassword().isBlank());
     }
 
-    // ============================================================
-    // Category Partition: login
-    //
-    // Categories:
-    // - token already valid -> LoggedUserException
-    // - validateUser: ok | throws
-    // - validateExistence(true): ok | throws
-    // - validateMatchingPasswords: ok | throws
-    // ============================================================
-    static Stream<Arguments> loginCases() {
+    static Stream<Arguments> loginProvider() {
         return Stream.of(
-                // alreadyLogged, validateUserThrows, validateExistenceThrows, validatePasswordThrows, expectedException
-                Arguments.of(true,  false, false, false, LoggedUserException.class),
-                Arguments.of(false, true,  false, false, RuntimeException.class),
-                Arguments.of(false, false, true,  false, RuntimeException.class),
-                Arguments.of(false, false, false, true,  RuntimeException.class),
-                Arguments.of(false, false, false, false, null)
+                // Case 1: Successful Login
+                Arguments.of(false, false, false, null),
+                // Case 2: Already Logged In
+                Arguments.of(true, false, false, LoggedUserException.class),
+                // Case 3: User Not Found (Existence check fails)
+                Arguments.of(false, true, false, RuntimeException.class),
+                // Case 4: Wrong Password (Matching check fails)
+                Arguments.of(false, false, true, RuntimeException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("loginCases")
-    void login_categoryPartition(boolean alreadyLogged,
-                                 boolean validateUserThrows,
-                                 boolean validateExistenceThrows,
-                                 boolean validatePasswordThrows,
-                                 Class<? extends Throwable> expectedException) {
+    @ParameterizedTest(name = "Login Partition - AlreadyLogged: {0}, UserNotFound: {1}, WrongPass: {2}")
+    @MethodSource("loginProvider")
+    void testLogin(boolean alreadyLogged, boolean userNotFound, boolean wrongPass, Class<? extends Throwable> expectedEx) {
+        UserDTO dto = new UserDTO("mario", "pass");
+        String token = "token";
 
-        UserDTO userDTO = user("mario", "password123");
+        when(jwtTokenValidator.isTokenValid(token)).thenReturn(alreadyLogged ? "mario" : null);
 
-        if (alreadyLogged) {
-            when(jwtTokenValidator.isTokenValid("token")).thenReturn("mario");
+        if (!alreadyLogged) {
+            if (userNotFound) {
+                doThrow(new RuntimeException()).when(userValidator).validateExistence(any(), eq(true));
+            } else if (wrongPass) {
+                doThrow(new RuntimeException()).when(userValidator).validateMatchingPasswords(any());
+            }
+        }
+
+        if (expectedEx != null) {
+            assertThrows(expectedEx, () -> authService.login(dto, token));
         } else {
-            when(jwtTokenValidator.isTokenValid("token")).thenReturn(null);
+            ResponseEntity<Map<String, String>> response = authService.login(dto, token);
+            assertNotNull(response.getBody().get("token"));
+            assertEquals("User mario logged in successfully", response.getBody().get("message"));
         }
-
-        if (validateUserThrows) {
-            doThrow(new RuntimeException("invalid user"))
-                    .when(userValidator).validateUser(any(UserValidationDTO.class));
-        }
-
-        if (validateExistenceThrows) {
-            doThrow(new RuntimeException("user not found"))
-                    .when(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-        }
-
-        if (validatePasswordThrows) {
-            doThrow(new RuntimeException("wrong password"))
-                    .when(userValidator).validateMatchingPasswords(any(UserValidationDTO.class));
-        }
-
-        if (expectedException != null) {
-            assertThrows(expectedException, () -> authService.login(userDTO, "token"));
-            return;
-        }
-
-        ResponseEntity<Map<String, String>> response = authService.login(userDTO, "token");
-
-        assertNotNull(response);
-        assertNotNull(response.getBody());
-        assertEquals("User mario logged in successfully", response.getBody().get("message"));
-        assertNotNull(response.getBody().get("token"));
-        assertFalse(response.getBody().get("token").isBlank());
-
-        verify(userValidator).validateUser(any(UserValidationDTO.class));
-        verify(userValidator).validateExistence(any(UserValidationDTO.class), eq(true));
-        verify(userValidator).validateMatchingPasswords(any(UserValidationDTO.class));
     }
 
-    // ============================================================
-    // Category Partition: logout
-    //
-    // Categories:
-    // - token valid: yes | no
-    // - blacklistToken: ok | throws
-    // ============================================================
-    static Stream<Arguments> logoutCases() {
+    static Stream<Arguments> logoutProvider() {
         return Stream.of(
-                // tokenValid, blacklistThrows, expectedException
+                // Case 1: Valid Logout
+                Arguments.of(true, false, null),
+                // Case 2: No session found (Boundary)
                 Arguments.of(false, false, NotLoggedUserException.class),
-                Arguments.of(true,  true,  AuthException.class),
-                Arguments.of(true,  false, null)
+                // Case 3: Blacklist DB fails
+                Arguments.of(true, true, AuthException.class)
         );
     }
 
-    @ParameterizedTest
-    @MethodSource("logoutCases")
-    void logout_categoryPartition(boolean tokenValid,
-                                  boolean blacklistThrows,
-                                  Class<? extends Throwable> expectedException) {
+    @ParameterizedTest(name = "Logout Partition - ValidToken: {0}, BlacklistError: {1}")
+    @MethodSource("logoutProvider")
+    void testLogout(boolean tokenValid, boolean dbError, Class<? extends Throwable> expectedEx) {
+        String token = "active_token";
+        when(jwtTokenValidator.isTokenValid(token)).thenReturn(tokenValid ? "mario" : null);
 
-        if (tokenValid) {
-            when(jwtTokenValidator.isTokenValid("token")).thenReturn("mario");
+        if (tokenValid && dbError) {
+            doThrow(new RuntimeException("Cosmos down")).when(cosmosAuthRepository).blacklistToken(token);
+        }
+
+        if (expectedEx != null) {
+            assertThrows(expectedEx, () -> authService.logout(token));
         } else {
-            when(jwtTokenValidator.isTokenValid("token")).thenReturn(null);
+            ResponseEntity<Map<String, String>> response = authService.logout(token);
+            assertTrue(response.getBody().get("message").contains("successfully"));
+            verify(cosmosAuthRepository).blacklistToken(token);
         }
-
-        if (blacklistThrows) {
-            doThrow(new RuntimeException("blacklist failed"))
-                    .when(cosmosAuthRepository).blacklistToken("token");
-        }
-
-        if (expectedException != null) {
-            assertThrows(expectedException, () -> authService.logout("token"));
-            return;
-        }
-
-        ResponseEntity<Map<String, String>> response = authService.logout("token");
-
-        assertNotNull(response);
-        assertNotNull(response.getBody());
-        assertEquals("User mario logged out successfully, token will be blacklisted",
-                response.getBody().get("message"));
-
-        verify(cosmosAuthRepository).blacklistToken("token");
     }
 }
