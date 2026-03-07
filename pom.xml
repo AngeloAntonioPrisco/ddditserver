@@ -34,20 +34,9 @@
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <sonar.pitest.mode>reuseReport</sonar.pitest.mode>
         <sonar.pitest.reportsDirectory>target/pit-reports</sonar.pitest.reportsDirectory>
-        <sonar.coverage.exclusions>
-            **/jmh_generated/**/*,
-            **/DdditserverApplication.java,
-            **/*Benchmark.java,
-            it/unisa/ddditserver/subsystems/ai/**/*,
-            it/unisa/ddditserver/config/**/*,
-            **/*DTO.java,
-            **/*Config.java,
-            **/*NonClosingInputStreamResource.java,
-            **/*ValidationResult.java,
-            **/controller/**/*,
-            **/exceptions/**/*,
-            **/schema.xml
-        </sonar.coverage.exclusions>
+        <!-- This is only because with the free plan of sonarqube you can't decide the threshold of the code coverage,
+         and the overall code coverage is already performed by jacoco-->
+        <sonar.coverage.exclusions>**/**</sonar.coverage.exclusions>
         <sonar.exclusions>
             janusgraph-conf/**,
             .github/**,
