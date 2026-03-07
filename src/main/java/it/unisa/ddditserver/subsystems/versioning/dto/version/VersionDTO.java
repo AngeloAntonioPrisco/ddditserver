@@ -39,16 +39,10 @@ public class VersionDTO {
     private List<MultipartFile> material;
 
     public String getTagsAsString() {
-        StringBuilder tagsAsString = new StringBuilder();
-
-        for (String tag : tags) {
-            tagsAsString.append(tag).append(", ");
+        if (this.tags == null || this.tags.isEmpty()) {
+            return "";
         }
 
-        if (!tagsAsString.isEmpty()) {
-            tagsAsString.delete(tagsAsString.length() - 2, tagsAsString.length());
-        }
-
-        return tagsAsString.toString();
+        return String.join(", ", this.tags);
     }
 }
