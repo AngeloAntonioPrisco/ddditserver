@@ -13,3 +13,7 @@ ignore:
     - '*':
         reason: "This risk has been evaluated as acceptable"
         expires: 2026-06-01T00:00:00.000Z
+  SNYK-JAVA-TOOLSJACKSONCORE-15371178:
+      - '*':
+          reason: "Transitive dependency from Spring Boot 4.0.3 (Jackson 3.0.4). Resource limit risk is currently acceptable for this environment."
+          expires: 2026-06-01T00:00:00.000Z

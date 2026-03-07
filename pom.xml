@@ -319,9 +319,9 @@
                 <version>0.8.11</version>
                 <configuration>
                     <excludes>
-                        <exclude>it/unisa/ddditserver/service/jmh_generated/**/*</exclude>
+                        <exclude>**/jmh_generated/**/*</exclude>
                         <exclude>**/DdditserverApplication.class</exclude>
-                        <exclude>it/unisa/ddditserver/service/RepositoryServiceBenchmark.class</exclude>
+                        <exclude>**/*Benchmark.class</exclude>
                         <exclude>it/unisa/ddditserver/subsystems/ai/**/*</exclude>
                         <exclude>it/unisa/ddditserver/config/**/*</exclude>
                         <exclude>**/*DTO.class</exclude>
