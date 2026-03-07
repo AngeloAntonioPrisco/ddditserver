@@ -1,4 +1,4 @@
-package it.unisa.ddditserver.service;
+package it.unisa.ddditserver.subsystems.service.repo;
 
 import it.unisa.ddditserver.db.gremlin.versioning.repo.GremlinRepositoryRepository;
 import it.unisa.ddditserver.subsystems.versioning.dto.RepositoryDTO;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 // To run this benchmark:
 // 1. mvn clean package -DskipTests
 // 2. java -cp target/benchmarks.jar org.openjdk.jmh.Main RepositoryServiceBenchmark
-public class RepositoryServiceBenchmark {
+public class RepositoryServiceImplBenchmark {
 
     private RepositoryServiceImpl service;
     private RepositoryDTO repositoryDTO;
@@ -31,7 +31,6 @@ public class RepositoryServiceBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        // Stub only is used to not let Mockito's log to saturate the memory
         GremlinRepositoryRepository gremlinService = Mockito.mock(GremlinRepositoryRepository.class, Mockito.withSettings().stubOnly());
         JWTokenValidator jwTokenValidator = Mockito.mock(JWTokenValidator.class, Mockito.withSettings().stubOnly());
         UserValidator userValidator = Mockito.mock(UserValidator.class, Mockito.withSettings().stubOnly());
