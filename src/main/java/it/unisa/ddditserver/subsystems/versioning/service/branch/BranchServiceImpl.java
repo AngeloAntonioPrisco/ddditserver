@@ -40,9 +40,7 @@ public class BranchServiceImpl implements BranchService {
       @   requires userValidator != null;
       @   requires resourceValidator != null;
       @   requires branchValidator != null;
-      @   assignable this.gremlinService, this.gremlinRepositoryRepository,
-      @              this.jwTokenValidator, this.userValidator,
-      @              this.resourceValidator, this.branchValidator;
+      @   assignable \everything;
       @   ensures this.gremlinService == gremlinService;
       @   ensures this.gremlinRepositoryRepository == gremlinRepositoryRepository;
       @   ensures this.jwTokenValidator == jwTokenValidator;
