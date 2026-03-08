@@ -65,16 +65,12 @@ public class BranchServiceImpl implements BranchService {
     /*@
       @ private normal_behavior
       @   requires repositoryName != null && username != null;
-      @   requires gremlinRepositoryRepository.isContributor(new RepositoryDTO(repositoryName), new UserDTO(username, null))
-      @         || gremlinRepositoryRepository.isOwner(new RepositoryDTO(repositoryName), new UserDTO(username, null));
       @   assignable \everything;
       @   ensures true;
       @
       @ also
       @ private exceptional_behavior
       @   requires repositoryName != null && username != null;
-      @   requires !gremlinRepositoryRepository.isContributor(new RepositoryDTO(repositoryName), new UserDTO(username, null))
-      @         && !gremlinRepositoryRepository.isOwner(new RepositoryDTO(repositoryName), new UserDTO(username, null));
       @   assignable \everything;
       @   signals_only RepositoryException;
       @   signals (RepositoryException) true;
@@ -113,12 +109,6 @@ public class BranchServiceImpl implements BranchService {
       @ public exceptional_behavior
       @   requires branchDTO != null && token != null;
       @   requires jwTokenValidator.isTokenValid(token) != null;
-      @   requires !gremlinRepositoryRepository.isContributor(
-      @               new RepositoryDTO(branchDTO.getRepositoryName()),
-      @               new UserDTO(jwTokenValidator.isTokenValid(token), null))
-      @         && !gremlinRepositoryRepository.isOwner(
-      @               new RepositoryDTO(branchDTO.getRepositoryName()),
-      @               new UserDTO(jwTokenValidator.isTokenValid(token), null));
       @   assignable \everything;
       @   signals_only RepositoryException;
       @   signals (RepositoryException) true;
@@ -185,12 +175,6 @@ public class BranchServiceImpl implements BranchService {
       @ public exceptional_behavior
       @   requires resourceDTO != null && token != null;
       @   requires jwTokenValidator.isTokenValid(token) != null;
-      @   requires !gremlinRepositoryRepository.isContributor(
-      @               new RepositoryDTO(resourceDTO.getRepositoryName()),
-      @               new UserDTO(jwTokenValidator.isTokenValid(token), null))
-      @         && !gremlinRepositoryRepository.isOwner(
-      @               new RepositoryDTO(resourceDTO.getRepositoryName()),
-      @               new UserDTO(jwTokenValidator.isTokenValid(token), null));
       @   assignable \everything;
       @   signals_only RepositoryException;
       @   signals (RepositoryException) true;
