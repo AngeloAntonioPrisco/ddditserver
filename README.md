@@ -255,12 +255,12 @@ After adding OpenJML to your PATH, verify that it is correctly installed by runn
 
 1. Check the version of Java:
     ```bash
-        java -version
+    java -version
     ```
 
 2. Check the version of OpenJML:
     ```bash
-        openjml -version
+    openjml -version
     ```
 ### Running the Analysis
 
