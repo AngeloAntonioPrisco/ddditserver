@@ -27,21 +27,39 @@ import java.util.*;
 public class VersionServiceImpl implements VersionService {
 
     private static final String RESOURCE_IN_KEY = " resource in ";
-
     private static final String BRANCH_FOR_KEY = " branch for ";
-
     private static final String MESSAGE_KEY = "message";
-
     private static final String REPOSITORY_KEY = " repository";
 
-    private GremlinVersionRepository gremlinVersionRepository;
-    private GremlinRepositoryRepository gremlinRepositoryRepository;
-    private JWTokenValidator jwTokenValidator;
-    private UserValidator userValidator;
-    private VersionValidator versionValidator;
-    private TagClassificationService tagClassificationService;
+    /*@ spec_public non_null @*/ private GremlinVersionRepository gremlinVersionRepository;
+    /*@ spec_public non_null @*/ private GremlinRepositoryRepository gremlinRepositoryRepository;
+    /*@ spec_public non_null @*/ private JWTokenValidator jwTokenValidator;
+    /*@ spec_public non_null @*/ private UserValidator userValidator;
+    /*@ spec_public non_null @*/ private VersionValidator versionValidator;
+    /*@ spec_public non_null @*/ private TagClassificationService tagClassificationService;
 
-    public VersionServiceImpl(GremlinRepositoryRepository gremlinRepositoryRepository, GremlinVersionRepository gremlinVersionRepository, JWTokenValidator jwTokenValidator, TagClassificationService tagClassificationService, UserValidator userValidator, VersionValidator versionValidator) {
+    /*@
+      @ public normal_behavior
+      @   requires gremlinRepositoryRepository != null;
+      @   requires gremlinVersionRepository != null;
+      @   requires jwTokenValidator != null;
+      @   requires tagClassificationService != null;
+      @   requires userValidator != null;
+      @   requires versionValidator != null;
+      @   assignable \everything;
+      @   ensures this.gremlinRepositoryRepository == gremlinRepositoryRepository;
+      @   ensures this.gremlinVersionRepository == gremlinVersionRepository;
+      @   ensures this.jwTokenValidator == jwTokenValidator;
+      @   ensures this.tagClassificationService == tagClassificationService;
+      @   ensures this.userValidator == userValidator;
+      @   ensures this.versionValidator == versionValidator;
+      @*/
+    public VersionServiceImpl(GremlinRepositoryRepository gremlinRepositoryRepository,
+                              GremlinVersionRepository gremlinVersionRepository,
+                              JWTokenValidator jwTokenValidator,
+                              TagClassificationService tagClassificationService,
+                              UserValidator userValidator,
+                              VersionValidator versionValidator) {
         this.gremlinRepositoryRepository = gremlinRepositoryRepository;
         this.gremlinVersionRepository = gremlinVersionRepository;
         this.jwTokenValidator = jwTokenValidator;
@@ -50,16 +68,39 @@ public class VersionServiceImpl implements VersionService {
         this.versionValidator = versionValidator;
     }
 
-    private void checkUserStatus(String repositoryName, String username) {
+    /*@
+      @ private normal_behavior
+      @   requires repositoryName != null && username != null;
+      @   assignable \everything;
+      @   ensures true;
+      @
+      @ also
+      @ private exceptional_behavior
+      @   requires repositoryName != null && username != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
+    private void checkUserStatus(/*@ non_null @*/ String repositoryName,
+            /*@ non_null @*/ String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
         UserDTO userDTO = new UserDTO(username, null);
 
-        if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) && !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
-            throw new RepositoryException("Permission denied because " + username + " is not a contributor or the owner of " + repositoryName + REPOSITORY_KEY);
+        if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) &&
+                !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
+            throw new RepositoryException("Permission denied because " + username +
+                    " is not a contributor or the owner of " + repositoryName + REPOSITORY_KEY);
         }
     }
 
-    private String generateVersionName(VersionDTO versionDTO) {
+    /*@
+      @ private normal_behavior
+      @   requires versionDTO != null;
+      @   requires versionDTO.getVersionName() != null;
+      @   assignable \nothing;
+      @   ensures \result != null;
+      @*/
+    private String generateVersionName(/*@ non_null @*/ VersionDTO versionDTO) {
         String base = versionDTO.getVersionName()
                 .replaceAll("[^a-zA-Z0-9]", "")
                 .toLowerCase();
@@ -73,9 +114,45 @@ public class VersionServiceImpl implements VersionService {
         return timestamp + "-" + base + uuidPart;
     }
 
-
+    /*@
+      @ public normal_behavior
+      @   requires versionDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires versionDTO.getRepositoryName() != null;
+      @   requires versionDTO.getResourceName() != null;
+      @   requires versionDTO.getBranchName() != null;
+      @   requires versionDTO.getVersionName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only VersionException;
+      @   signals (VersionException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, String>> createVersion(VersionDTO versionDTO, String token) {
+    public ResponseEntity<Map<String, String>> createVersion(/*@ non_null @*/ VersionDTO versionDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = versionDTO.getRepositoryName();
         String resourceName = versionDTO.getResourceName();
@@ -96,10 +173,9 @@ public class VersionServiceImpl implements VersionService {
         if (versionDTO.getMesh() == null) {
             resourceType = false;
             material = versionDTO.getMaterial();
-        }
-        else {
+        } else {
             resourceType = true;
-            mesh =  versionDTO.getMesh();
+            mesh = versionDTO.getMesh();
             // ATTENTION: At the moment this is a placeholder, no classification is performed
             tags = tagClassificationService.classify(versionDTO);
         }
@@ -126,8 +202,8 @@ public class VersionServiceImpl implements VersionService {
         String generatedVersionName = generateVersionName(versionDTO);
         versionDTO.setVersionName(generatedVersionName);
 
-        // Check if the resource already exists in graph database
-        // Check ResourceValidator interface for more information about the exists flag
+        // Check if the version already exists in graph database
+        // Check VersionValidator interface for more information about the exists flag
         versionValidator.validateExistence(versionValidationDTO, false);
 
         VersionDTO enrichedVersionDTO;
@@ -135,14 +211,14 @@ public class VersionServiceImpl implements VersionService {
         if (resourceType) {
             enrichedVersionDTO = new VersionDTO(
                     repositoryName, resourceName,
-                    branchName, generatedVersionName ,
+                    branchName, generatedVersionName,
                     retrievedUsername, pushedAt, comment,
                     tags, mesh, null
             );
         } else {
             enrichedVersionDTO = new VersionDTO(
                     repositoryName, resourceName,
-                    branchName, generatedVersionName ,
+                    branchName, generatedVersionName,
                     retrievedUsername, pushedAt, comment,
                     tags, null, material
             );
@@ -170,8 +246,45 @@ public class VersionServiceImpl implements VersionService {
         return ResponseEntity.ok(response);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires versionDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires versionDTO.getRepositoryName() != null;
+      @   requires versionDTO.getResourceName() != null;
+      @   requires versionDTO.getBranchName() != null;
+      @   requires versionDTO.getVersionName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only VersionException;
+      @   signals (VersionException) true;
+      @*/
     @Override
-    public ResponseEntity<MultiValueMap<String, Object>> pullVersion(VersionDTO versionDTO, String token) {
+    public ResponseEntity<MultiValueMap<String, Object>> pullVersion(/*@ non_null @*/ VersionDTO versionDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = versionDTO.getRepositoryName();
         String resourceName = versionDTO.getResourceName();
@@ -192,8 +305,7 @@ public class VersionServiceImpl implements VersionService {
         VersionValidationDTO versionValidationDTO = new VersionValidationDTO(
                 repositoryName, resourceName,
                 branchName, versionName,
-                null, null,
-                null
+                null, null, null
         );
 
         // Check if the version already exists in graph database
@@ -234,8 +346,45 @@ public class VersionServiceImpl implements VersionService {
         return new ResponseEntity<>(body, headers, HttpStatus.OK);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires versionDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires versionDTO.getRepositoryName() != null;
+      @   requires versionDTO.getResourceName() != null;
+      @   requires versionDTO.getBranchName() != null;
+      @   requires versionDTO.getVersionName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires versionDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only VersionException;
+      @   signals (VersionException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, Object>> showVersionMetadata(VersionDTO versionDTO, String token) {
+    public ResponseEntity<Map<String, Object>> showVersionMetadata(/*@ non_null @*/ VersionDTO versionDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = versionDTO.getRepositoryName();
         String resourceName = versionDTO.getResourceName();
@@ -279,7 +428,7 @@ public class VersionServiceImpl implements VersionService {
         response.put("versionName", versionDTO.getVersionName());
         response.put("username", versionDTO.getUsername() != null ? versionDTO.getUsername() : "anonymous");
 
-        // To enure ISO date
+        // To ensure ISO date
         String isoDate;
         if (versionDTO.getPushedAt() != null) {
             isoDate = versionDTO.getPushedAt().toString();
@@ -294,4 +443,3 @@ public class VersionServiceImpl implements VersionService {
         return ResponseEntity.ok(response);
     }
 }
-
