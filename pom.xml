@@ -367,58 +367,56 @@
             <plugin>
                 <groupId>org.pitest</groupId>
                 <artifactId>pitest-maven</artifactId>
-                <version>1.22.1</version>
-                <configuration>
-                    <targetClasses>
-                        <param>it.unisa.ddditserver.service.**</param>
-                        <param>it.unisa.ddditserver.validators.**</param>
-                        <param>it.unisa.ddditserver.db.**</param>
-                        <param>it.unisa.ddditserver.subsystems.**</param>
-                    </targetClasses>
-                    <targetTests>
-                        <param>it.unisa.ddditserver.*Test</param>
-                    </targetTests>
-                    <excludedClasses>
-                        <param>*Application*</param>
-                        <param>*Config*</param>
-                        <param>*Configuration*</param>
-                        <param>*Repository*</param>
-                        <param>*Controller*</param>
-                        <param>*Dto*</param>
-                        <param>*Entity*</param>
-                        <param>*Mesh*</param>
-                        <param>*Assimp*</param>
-                        <param>*Onnx*</param>
-                    </excludedClasses>
-                    <threads>1</threads>
-                    <useClasspathJar>true</useClasspathJar>
-                    <jvmArgs>
-                        <param>-Xmx2G</param>
-                        <param>--add-opens=java.base/java.lang=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.util=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.lang.reflect=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.io=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.time=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.math=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.nio=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/sun.nio.ch=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.util.concurrent=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED</param>
-                        <param>--add-opens=java.base/java.net=ALL-UNNAMED</param>
-                        <param>--enable-native-access=ALL-UNNAMED</param>
-                    </jvmArgs>
-                    <verbose>true</verbose>
-                </configuration>
+                <version>1.17.0</version> <configuration>
+                <targetClasses>
+                    <param>it.unisa.ddditserver.**.*</param>
+                </targetClasses>
+                <targetTests>
+                    <param>it.unisa.ddditserver.**.*Test</param>
+                </targetTests>
+                <excludedClasses>
+                    <param>*Application*</param>
+                    <param>*Config*</param>
+                    <param>*Configuration*</param>
+                    <param>*Controller*</param>
+                    <param>*DTO*</param>
+                    <param>*Entity*</param>
+                    <param>*Mesh*</param>
+                    <param>*Assimp*</param>
+                    <param>*Onnx*</param>
+                    <param>*jmh_generated*</param>
+                    <param>*Classification*</param>
+                    <param>*Benchmark*</param>
+                </excludedClasses>
+
+                <argLine></argLine>
+
+                <threads>1</threads>
+                <useClasspathJar>true</useClasspathJar>
+
+                <jvmArgs>
+                    <param>-XX:+EnableDynamicAgentLoading</param>
+                    <param>-Xmx2G</param>
+                    <param>--add-opens=java.base/java.lang=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.util=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.lang.reflect=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.io=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.time=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.math=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.nio=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/sun.nio.ch=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.util.concurrent=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED</param>
+                    <param>--add-opens=java.base/java.net=ALL-UNNAMED</param>
+                    <param>--enable-native-access=ALL-UNNAMED</param>
+                </jvmArgs>
+                <verbose>true</verbose>
+            </configuration>
                 <dependencies>
                     <dependency>
                         <groupId>org.pitest</groupId>
                         <artifactId>pitest-junit5-plugin</artifactId>
                         <version>1.2.2</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>org.junit.platform</groupId>
-                        <artifactId>junit-platform-launcher</artifactId>
-                        <version>1.12.2</version>
                     </dependency>
                 </dependencies>
             </plugin>
