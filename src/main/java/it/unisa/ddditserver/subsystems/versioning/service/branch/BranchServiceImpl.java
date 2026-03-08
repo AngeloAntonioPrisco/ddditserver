@@ -25,12 +25,12 @@ import java.util.Map;
 @Service
 public class BranchServiceImpl implements BranchService {
 
-    /*@ spec_public @*/ private GremlinBranchRepository gremlinService;
-    /*@ spec_public @*/ private GremlinRepositoryRepository gremlinRepositoryRepository;
-    /*@ spec_public @*/ private JWTokenValidator jwTokenValidator;
-    /*@ spec_public @*/ private UserValidator userValidator;
-    /*@ spec_public @*/ private ResourceValidator resourceValidator;
-    /*@ spec_public @*/ private BranchValidator branchValidator;
+    /*@ spec_public non_null @*/ private GremlinBranchRepository gremlinService;
+    /*@ spec_public non_null @*/ private GremlinRepositoryRepository gremlinRepositoryRepository;
+    /*@ spec_public non_null @*/ private JWTokenValidator jwTokenValidator;
+    /*@ spec_public non_null @*/ private UserValidator userValidator;
+    /*@ spec_public non_null @*/ private ResourceValidator resourceValidator;
+    /*@ spec_public non_null @*/ private BranchValidator branchValidator;
 
     /*@
       @ public normal_behavior
@@ -40,7 +40,9 @@ public class BranchServiceImpl implements BranchService {
       @   requires userValidator != null;
       @   requires resourceValidator != null;
       @   requires branchValidator != null;
-      @   assignable \everything;
+      @   assignable this.gremlinService, this.gremlinRepositoryRepository,
+      @              this.jwTokenValidator, this.userValidator,
+      @              this.resourceValidator, this.branchValidator;
       @   ensures this.gremlinService == gremlinService;
       @   ensures this.gremlinRepositoryRepository == gremlinRepositoryRepository;
       @   ensures this.jwTokenValidator == jwTokenValidator;
@@ -75,7 +77,8 @@ public class BranchServiceImpl implements BranchService {
       @   signals_only RepositoryException;
       @   signals (RepositoryException) true;
       @*/
-    private void checkUserStatus(String repositoryName, String username) {
+    private void checkUserStatus(/*@ non_null @*/ String repositoryName,
+            /*@ non_null @*/ String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
         UserDTO userDTO = new UserDTO(username, null);
 
@@ -114,7 +117,8 @@ public class BranchServiceImpl implements BranchService {
       @   signals (RepositoryException) true;
       @*/
     @Override
-    public ResponseEntity<Map<String, String>> createBranch(BranchDTO branchDTO, String token) {
+    public ResponseEntity<Map<String, String>> createBranch(/*@ non_null @*/ BranchDTO branchDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = branchDTO.getRepositoryName();
         String resourceName = branchDTO.getResourceName();
@@ -180,7 +184,8 @@ public class BranchServiceImpl implements BranchService {
       @   signals (RepositoryException) true;
       @*/
     @Override
-    public ResponseEntity<Map<String, Object>> listBranchesByResource(ResourceDTO resourceDTO, String token) {
+    public ResponseEntity<Map<String, Object>> listBranchesByResource(/*@ non_null @*/ ResourceDTO resourceDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = resourceDTO.getRepositoryName();
         String resourceName = resourceDTO.getResourceName();
