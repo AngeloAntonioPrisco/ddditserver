@@ -131,6 +131,16 @@ The server is intended to run with **Docker**, but it can also be executed local
 
 9. Go to the file **docker-compose.yml** and run it.
 
+## 🔎 Run Tests
+
+For **JUnit** tests you can run them directly from IntelliJ IDEA or through `mvn clean test`.
+
+For **JaCoCo** coverage you can compute it through `mvn clean verify` and then check the report in `ddditserver > target > site > jacoco > index.html`.
+
+For **Pitest** mutation testing you can run it through `mvn pitest:mutationCoverage` and then check the report in `ddditserver > target > pit-reports > index.html`.
+
+For **JMH** benchmarks you can run them through `java -cp target/benchmarks.jar org.openjdk.jmh.Main ".*Benchmark"` after a `mvn clean package`.
+
 ## 🧱 Built With
 
 - [Java](https://www.oracle.com/java/) – Programming language used for the server implementation.
