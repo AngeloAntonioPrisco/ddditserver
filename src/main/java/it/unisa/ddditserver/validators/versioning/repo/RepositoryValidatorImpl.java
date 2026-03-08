@@ -22,7 +22,7 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
     /*@
       @ public normal_behavior
       @   requires gremlinService != null;
-      @   assignable gremlinService;
+      @   assignable this.gremlinService;
       @   ensures this.gremlinService == gremlinService;
       @*/
     @Autowired
@@ -46,6 +46,7 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
     }
 
     /*@
+      @ also
       @ public normal_behavior
       @   requires repositoryValidationDTO != null && isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
       @   ensures \result != null && \result.isValid();
@@ -67,6 +68,7 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
     }
 
     /*@
+      @ also
       @ public normal_behavior
       @   requires repositoryValidationDTO != null && isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
       @   ensures \result != null && \result.isValid();
@@ -99,6 +101,7 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
     }
 
     /*@
+      @ also
       @ public normal_behavior
       @   requires repositoryValidationDTO != null && isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
       @   ensures \result != null && \result.isValid();
