@@ -27,20 +27,47 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class ResourceServiceImpl implements  ResourceService {
+public class ResourceServiceImpl implements ResourceService {
 
     private static final String MESSAGE_KEY = "message";
 
-    private GremlinResourceRepository gremlinResourceRepository;
-    private GremlinBranchRepository gremlinBranchRepository;
-    private GremlinVersionRepository gremlinVersionRepository;
-    private JWTokenValidator jwTokenValidator;
-    private UserValidator userValidator;
-    private RepositoryValidator repositoryValidator;
-    private ResourceValidator resourceValidator;
-    private GremlinRepositoryRepository gremlinRepositoryRepository;
+    /*@ spec_public non_null @*/ private GremlinResourceRepository gremlinResourceRepository;
+    /*@ spec_public non_null @*/ private GremlinBranchRepository gremlinBranchRepository;
+    /*@ spec_public non_null @*/ private GremlinVersionRepository gremlinVersionRepository;
+    /*@ spec_public non_null @*/ private JWTokenValidator jwTokenValidator;
+    /*@ spec_public non_null @*/ private UserValidator userValidator;
+    /*@ spec_public non_null @*/ private RepositoryValidator repositoryValidator;
+    /*@ spec_public non_null @*/ private ResourceValidator resourceValidator;
+    /*@ spec_public non_null @*/ private GremlinRepositoryRepository gremlinRepositoryRepository;
 
-    public ResourceServiceImpl(GremlinBranchRepository gremlinBranchRepository, GremlinRepositoryRepository gremlinRepositoryRepository, GremlinResourceRepository gremlinResourceRepository, GremlinVersionRepository gremlinVersionRepository, JWTokenValidator jwTokenValidator, RepositoryValidator repositoryValidator, ResourceValidator resourceValidator, UserValidator userValidator) {
+    /*@
+      @ public normal_behavior
+      @   requires gremlinBranchRepository != null;
+      @   requires gremlinRepositoryRepository != null;
+      @   requires gremlinResourceRepository != null;
+      @   requires gremlinVersionRepository != null;
+      @   requires jwTokenValidator != null;
+      @   requires repositoryValidator != null;
+      @   requires resourceValidator != null;
+      @   requires userValidator != null;
+      @   assignable \everything;
+      @   ensures this.gremlinBranchRepository == gremlinBranchRepository;
+      @   ensures this.gremlinRepositoryRepository == gremlinRepositoryRepository;
+      @   ensures this.gremlinResourceRepository == gremlinResourceRepository;
+      @   ensures this.gremlinVersionRepository == gremlinVersionRepository;
+      @   ensures this.jwTokenValidator == jwTokenValidator;
+      @   ensures this.repositoryValidator == repositoryValidator;
+      @   ensures this.resourceValidator == resourceValidator;
+      @   ensures this.userValidator == userValidator;
+      @*/
+    public ResourceServiceImpl(GremlinBranchRepository gremlinBranchRepository,
+                               GremlinRepositoryRepository gremlinRepositoryRepository,
+                               GremlinResourceRepository gremlinResourceRepository,
+                               GremlinVersionRepository gremlinVersionRepository,
+                               JWTokenValidator jwTokenValidator,
+                               RepositoryValidator repositoryValidator,
+                               ResourceValidator resourceValidator,
+                               UserValidator userValidator) {
         this.gremlinBranchRepository = gremlinBranchRepository;
         this.gremlinRepositoryRepository = gremlinRepositoryRepository;
         this.gremlinResourceRepository = gremlinResourceRepository;
@@ -51,17 +78,68 @@ public class ResourceServiceImpl implements  ResourceService {
         this.userValidator = userValidator;
     }
 
-    private void checkUserStatus(String repositoryName, String username) {
+    /*@
+      @ private normal_behavior
+      @   requires repositoryName != null && username != null;
+      @   assignable \everything;
+      @   ensures true;
+      @
+      @ also
+      @ private exceptional_behavior
+      @   requires repositoryName != null && username != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
+    private void checkUserStatus(/*@ non_null @*/ String repositoryName,
+            /*@ non_null @*/ String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
         UserDTO userDTO = new UserDTO(username, null);
 
-        if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) && !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
-            throw new RepositoryException("Permission denied because " + username + " is not a contributor or the owner of " + repositoryName + " repository");
+        if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) &&
+                !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
+            throw new RepositoryException("Permission denied because " + username +
+                    " is not a contributor or the owner of " + repositoryName + " repository");
         }
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires resourceDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires resourceDTO.getRepositoryName() != null;
+      @   requires resourceDTO.getResourceName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only ResourceException;
+      @   signals (ResourceException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, String>> createResource(ResourceDTO resourceDTO, String token) {
+    public ResponseEntity<Map<String, String>> createResource(/*@ non_null @*/ ResourceDTO resourceDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = resourceDTO.getRepositoryName();
         String resourceName = resourceDTO.getResourceName();
@@ -93,13 +171,48 @@ public class ResourceServiceImpl implements  ResourceService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put(MESSAGE_KEY, "Resource " + resourceName + " created successfully in " + repositoryName + " repository");
+        response.put(MESSAGE_KEY, "Resource " + resourceName + " created successfully in " +
+                repositoryName + " repository");
 
         return ResponseEntity.ok(response);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires repositoryDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires repositoryDTO.getRepositoryName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires repositoryDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires repositoryDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires repositoryDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only ResourceException;
+      @   signals (ResourceException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, Object>> listResourcesByRepository(RepositoryDTO repositoryDTO, String token) {
+    public ResponseEntity<Map<String, Object>> listResourcesByRepository(/*@ non_null @*/ RepositoryDTO repositoryDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = repositoryDTO.getRepositoryName();
 
@@ -138,8 +251,43 @@ public class ResourceServiceImpl implements  ResourceService {
         return ResponseEntity.ok(response);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires resourceDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires resourceDTO.getRepositoryName() != null;
+      @   requires resourceDTO.getResourceName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only ResourceException;
+      @   signals (ResourceException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, Object>> showVersionTree(ResourceDTO resourceDTO, String token) {
+    public ResponseEntity<Map<String, Object>> showVersionTree(/*@ non_null @*/ ResourceDTO resourceDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = resourceDTO.getRepositoryName();
         String resourceName = resourceDTO.getResourceName();
@@ -170,9 +318,8 @@ public class ResourceServiceImpl implements  ResourceService {
             List<BranchDTO> branches = gremlinBranchRepository.findBranchesByResource(resourceDTO);
 
             for (BranchDTO branch : branches) {
-
                 List<VersionDTO> versions = gremlinVersionRepository.findVersionsByBranch(branch);
-                List<String> versionNames =  new ArrayList<>();
+                List<String> versionNames = new ArrayList<>();
 
                 for (VersionDTO version : versions) {
                     versionNames.add(version.getVersionName());
@@ -185,7 +332,8 @@ public class ResourceServiceImpl implements  ResourceService {
         }
 
         Map<String, Object> response = new HashMap<>();
-        response.put(MESSAGE_KEY, "Version tree of " + resourceName + " resource in " + repositoryName + " repository retrieved successfully");
+        response.put(MESSAGE_KEY, "Version tree of " + resourceName + " resource in " +
+                repositoryName + " repository retrieved successfully");
         response.put("versionTree", versionTree);
 
         return ResponseEntity.ok(response);
