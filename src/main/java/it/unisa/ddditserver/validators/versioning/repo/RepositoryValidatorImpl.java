@@ -34,11 +34,25 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
     private static final int REPOSITORY_NAME_MAX_LENGTH = 30;
     private static final Pattern REPOSITORY_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_.]+$");
 
+    /*@
+      @ public normal_behavior
+      @   requires gremlinService != null;
+      @   assignable this.gremlinService;
+      @   ensures this.gremlinService == gremlinService;
+      @*/
     @Autowired
     public RepositoryValidatorImpl(GremlinRepositoryRepository gremlinService) {
         this.gremlinService = gremlinService;
     }
 
+    /*@
+      @ public normal_behavior
+      @   ensures \result == (repositoryName != null &&
+      @                      repositoryName.length() >= REPOSITORY_NAME_MIN_LENGTH &&
+      @                      repositoryName.length() <= REPOSITORY_NAME_MAX_LENGTH &&
+      @                      (\exists String s; s.equals(repositoryName) && REPOSITORY_NAME_PATTERN.matcher(s).matches()));
+      @   pure
+      @*/
     public boolean isValidRepositoryName(String repositoryName) {
         if (repositoryName == null || repositoryName.isEmpty()) return false;
         int length = repositoryName.length();
@@ -47,6 +61,16 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
                 REPOSITORY_NAME_PATTERN.matcher(repositoryName).matches();
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires repositoryValidationDTO != null && isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
+      @   ensures \result != null && \result.isValid();
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires repositoryValidationDTO == null || !isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
+      @   signals (InvalidRepositoryNameException) true;
+      @*/
     @Override
     public ValidationResult validateRepository(RepositoryValidationDTO repositoryValidationDTO) {
         String repositoryName = repositoryValidationDTO.getRepositoryName();
@@ -58,6 +82,28 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
         return ValidationResult.valid();
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires repositoryValidationDTO != null && isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
+      @   requires exists ==> gremlinService.existsByRepository(new RepositoryDTO(repositoryValidationDTO.getRepositoryName()));
+      @   requires !exists ==> !gremlinService.existsByRepository(new RepositoryDTO(repositoryValidationDTO.getRepositoryName()));
+      @   ensures \result != null && \result.isValid();
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires !isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
+      @   signals (InvalidRepositoryNameException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires isValidRepositoryName(repositoryValidationDTO.getRepositoryName()) && exists && !gremlinService.existsByRepository(new RepositoryDTO(repositoryValidationDTO.getRepositoryName()));
+      @   signals (RepositoryNotFoundException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires isValidRepositoryName(repositoryValidationDTO.getRepositoryName()) && !exists && gremlinService.existsByRepository(new RepositoryDTO(repositoryValidationDTO.getRepositoryName()));
+      @   signals (ExistingRepositoryException) true;
+      @*/
     @Override
     public ValidationResult validateExistence(RepositoryValidationDTO repositoryValidationDTO, boolean exists) {
         String repositoryName = repositoryValidationDTO.getRepositoryName();
@@ -81,6 +127,18 @@ public class RepositoryValidatorImpl implements RepositoryValidator {
         return ValidationResult.valid();
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires repositoryValidationDTO != null;
+      @   requires isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
+      @   requires gremlinService.existsByRepository(new RepositoryDTO(repositoryValidationDTO.getRepositoryName()));
+      @   ensures \result != null && \result.isValid();
+      @
+      @ also
+      @ public exceptional_behavior
+      @   signals (InvalidRepositoryNameException) !isValidRepositoryName(repositoryValidationDTO.getRepositoryName());
+      @   signals (RepositoryNotFoundException) isValidRepositoryName(repositoryValidationDTO.getRepositoryName()) && !gremlinService.existsByRepository(new RepositoryDTO(repositoryValidationDTO.getRepositoryName()));
+      @*/
     @Override
     public ValidationResult validate(RepositoryValidationDTO repositoryValidationDTO) {
         ValidationResult repositoryValidation = validateRepository(repositoryValidationDTO);
