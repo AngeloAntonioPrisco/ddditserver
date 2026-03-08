@@ -17,15 +17,27 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class RepositoryServiceImpl implements  RepositoryService {
+public class RepositoryServiceImpl implements RepositoryService {
 
     private static final String MESSAGE_KEY = "message";
 
-    private final GremlinRepositoryRepository gremlinService;
-    private final JWTokenValidator jwTokenValidator;
-    private final UserValidator userValidator;
-    private final RepositoryValidator repositoryValidator;
+    /*@ spec_public non_null @*/ private final GremlinRepositoryRepository gremlinService;
+    /*@ spec_public non_null @*/ private final JWTokenValidator jwTokenValidator;
+    /*@ spec_public non_null @*/ private final UserValidator userValidator;
+    /*@ spec_public non_null @*/ private final RepositoryValidator repositoryValidator;
 
+    /*@
+      @ public normal_behavior
+      @   requires gremlinService != null;
+      @   requires jwTokenValidator != null;
+      @   requires userValidator != null;
+      @   requires repositoryValidator != null;
+      @   assignable \everything;
+      @   ensures this.gremlinService == gremlinService;
+      @   ensures this.jwTokenValidator == jwTokenValidator;
+      @   ensures this.userValidator == userValidator;
+      @   ensures this.repositoryValidator == repositoryValidator;
+      @*/
     public RepositoryServiceImpl(GremlinRepositoryRepository gremlinService,
                                  JWTokenValidator jwTokenValidator,
                                  UserValidator userValidator,
@@ -36,8 +48,34 @@ public class RepositoryServiceImpl implements  RepositoryService {
         this.repositoryValidator = repositoryValidator;
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires repositoryDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires repositoryDTO.getRepositoryName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires repositoryDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires repositoryDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, String>> createRepository(RepositoryDTO repositoryDTO, String token) {
+    public ResponseEntity<Map<String, String>> createRepository(/*@ non_null @*/ RepositoryDTO repositoryDTO,
+            /*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
         String repositoryName = repositoryDTO.getRepositoryName();
 
@@ -71,8 +109,31 @@ public class RepositoryServiceImpl implements  RepositoryService {
         return ResponseEntity.ok(response);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, Object>> listRepositoriesOwned(String token) {
+    public ResponseEntity<Map<String, Object>> listRepositoriesOwned(/*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
 
         if (retrievedUsername == null) {
@@ -99,8 +160,31 @@ public class RepositoryServiceImpl implements  RepositoryService {
         return ResponseEntity.ok(response);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
     @Override
-    public ResponseEntity<Map<String, Object>> listRepositoriesContributed(String token) {
+    public ResponseEntity<Map<String, Object>> listRepositoriesContributed(/*@ non_null @*/ String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
 
         if (retrievedUsername == null) {
