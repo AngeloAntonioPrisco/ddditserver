@@ -24,13 +24,30 @@ import java.util.Map;
 
 @Service
 public class BranchServiceImpl implements BranchService {
-    private GremlinBranchRepository gremlinService;
-    private GremlinRepositoryRepository gremlinRepositoryRepository;
-    private JWTokenValidator jwTokenValidator;
-    private UserValidator userValidator;
-    private ResourceValidator resourceValidator;
-    private BranchValidator branchValidator;
 
+    /*@ spec_public @*/ private GremlinBranchRepository gremlinService;
+    /*@ spec_public @*/ private GremlinRepositoryRepository gremlinRepositoryRepository;
+    /*@ spec_public @*/ private JWTokenValidator jwTokenValidator;
+    /*@ spec_public @*/ private UserValidator userValidator;
+    /*@ spec_public @*/ private ResourceValidator resourceValidator;
+    /*@ spec_public @*/ private BranchValidator branchValidator;
+
+    /*@
+      @ public normal_behavior
+      @   requires gremlinService != null;
+      @   requires gremlinRepositoryRepository != null;
+      @   requires jwTokenValidator != null;
+      @   requires userValidator != null;
+      @   requires resourceValidator != null;
+      @   requires branchValidator != null;
+      @   assignable \everything;
+      @   ensures this.gremlinService == gremlinService;
+      @   ensures this.gremlinRepositoryRepository == gremlinRepositoryRepository;
+      @   ensures this.jwTokenValidator == jwTokenValidator;
+      @   ensures this.userValidator == userValidator;
+      @   ensures this.resourceValidator == resourceValidator;
+      @   ensures this.branchValidator == branchValidator;
+      @*/
     public BranchServiceImpl(GremlinBranchRepository gremlinService,
                              GremlinRepositoryRepository gremlinRepositoryRepository,
                              JWTokenValidator jwTokenValidator,
@@ -45,15 +62,67 @@ public class BranchServiceImpl implements BranchService {
         this.branchValidator = branchValidator;
     }
 
+    /*@
+      @ private normal_behavior
+      @   requires repositoryName != null && username != null;
+      @   requires gremlinRepositoryRepository.isContributor(new RepositoryDTO(repositoryName), new UserDTO(username, null))
+      @         || gremlinRepositoryRepository.isOwner(new RepositoryDTO(repositoryName), new UserDTO(username, null));
+      @   assignable \everything;
+      @   ensures true;
+      @
+      @ also
+      @ private exceptional_behavior
+      @   requires repositoryName != null && username != null;
+      @   requires !gremlinRepositoryRepository.isContributor(new RepositoryDTO(repositoryName), new UserDTO(username, null))
+      @         && !gremlinRepositoryRepository.isOwner(new RepositoryDTO(repositoryName), new UserDTO(username, null));
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
     private void checkUserStatus(String repositoryName, String username) {
         RepositoryDTO repositoryDTO = new RepositoryDTO(repositoryName);
         UserDTO userDTO = new UserDTO(username, null);
 
-        if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) && !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
-            throw new RepositoryException("Permission denied because " + username + " is not a contributor or the owner of " + repositoryName + " repository");
+        if (!gremlinRepositoryRepository.isContributor(repositoryDTO, userDTO) &&
+                !gremlinRepositoryRepository.isOwner(repositoryDTO, userDTO)) {
+            throw new RepositoryException("Permission denied because " + username +
+                    " is not a contributor or the owner of " + repositoryName + " repository");
         }
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires branchDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires branchDTO.getRepositoryName() != null;
+      @   requires branchDTO.getResourceName() != null;
+      @   requires branchDTO.getBranchName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires branchDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires branchDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires !gremlinRepositoryRepository.isContributor(
+      @               new RepositoryDTO(branchDTO.getRepositoryName()),
+      @               new UserDTO(jwTokenValidator.isTokenValid(token), null))
+      @         && !gremlinRepositoryRepository.isOwner(
+      @               new RepositoryDTO(branchDTO.getRepositoryName()),
+      @               new UserDTO(jwTokenValidator.isTokenValid(token), null));
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
     @Override
     public ResponseEntity<Map<String, String>> createBranch(BranchDTO branchDTO, String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
@@ -88,11 +157,44 @@ public class BranchServiceImpl implements BranchService {
         }
 
         Map<String, String> response = new HashMap<>();
-        response.put("message", "Branch " + branchName + " created successfully for " + resourceName + " resource in " + repositoryName + " repository");
+        response.put("message", "Branch " + branchName + " created successfully for " +
+                resourceName + " resource in " + repositoryName + " repository");
 
         return ResponseEntity.ok(response);
     }
 
+    /*@
+      @ public normal_behavior
+      @   requires resourceDTO != null;
+      @   requires token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires resourceDTO.getRepositoryName() != null;
+      @   requires resourceDTO.getResourceName() != null;
+      @   assignable \everything;
+      @   ensures \result != null;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) == null;
+      @   assignable \everything;
+      @   signals_only NotLoggedUserException;
+      @   signals (NotLoggedUserException) true;
+      @
+      @ also
+      @ public exceptional_behavior
+      @   requires resourceDTO != null && token != null;
+      @   requires jwTokenValidator.isTokenValid(token) != null;
+      @   requires !gremlinRepositoryRepository.isContributor(
+      @               new RepositoryDTO(resourceDTO.getRepositoryName()),
+      @               new UserDTO(jwTokenValidator.isTokenValid(token), null))
+      @         && !gremlinRepositoryRepository.isOwner(
+      @               new RepositoryDTO(resourceDTO.getRepositoryName()),
+      @               new UserDTO(jwTokenValidator.isTokenValid(token), null));
+      @   assignable \everything;
+      @   signals_only RepositoryException;
+      @   signals (RepositoryException) true;
+      @*/
     @Override
     public ResponseEntity<Map<String, Object>> listBranchesByResource(ResourceDTO resourceDTO, String token) {
         String retrievedUsername = jwTokenValidator.isTokenValid(token);
