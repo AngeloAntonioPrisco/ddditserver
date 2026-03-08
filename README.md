@@ -141,6 +141,243 @@ For **Pitest** mutation testing you can run it through `mvn pitest:mutationCover
 
 For **JMH** benchmarks you can run them through `java -cp target/benchmarks.jar org.openjdk.jmh.Main ".*Benchmark"` after a `mvn clean package`.
 
+## 🔬 Run JML Analysis
+
+On a linux machine you can run the analysis following the steps below:
+
+### Prerequisites
+- Java JDK 21 (or compatible).
+- Download OpenJML from [https://www.openjml.org](https://www.openjml.org).
+- Unzip the archive and add the JML folder to the PATH.
+- On Ubuntu do do not forget to install **libgomp1** using `sudo apt-get install libgomp1`.
+
+### Installing Java
+
+#### Ubuntu
+
+On Ubuntu, you can install OpenJDK 21 using the following commands:
+
+1. Update the package list:
+    ```bash
+    sudo apt update
+    ```
+2. Install OpenJDK:
+    ```bash
+    sudo apt install openjdk-21-jdk
+    ```    
+
+#### macOS
+
+##### Option 1: Using Homebrew (Recommended)
+1. Install Homebrew if you haven't already:
+    ```bash
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    ```
+
+2. Install OpenJDK 21:
+   ```bash
+   brew install openjdk@21
+   ```
+3. Add Java to your PATH by adding this line to your shell configuration file (`~/.zshrc` or `~/.bash_profile`):
+   ```bash
+   export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
+   export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
+   ```
+4. Reload your shell configuration:
+   ```bash
+   source ~/.zshrc  # or source ~/.bash_profile
+   ```
+
+##### Option 2: Manual Installation
+1. Download OpenJDK 21 from [Adoptium](https://adoptium.net/temurin/releases/?version=21)
+2. Install the `.pkg` file
+3. The installer will automatically configure the PATH
+
+### Verify Java Installation
+After installation, verify that Java is correctly installed:
+
+1. Check the version of Java:
+    ```bash
+    java -version
+    ```
+2. Check the version of javac:
+    ```bash
+    javac -version
+    ```
+   
+You should see output indicating Java 21 (or your chosen version).
+
+### Download OpenJML
+Download the latest release of OpenJML from: [https://github.com/OpenJML/OpenJML/releases/tag/21-0.16](https://github.com/OpenJML/OpenJML/releases/tag/21-0.16)
+
+### Adding OpenJML to PATH
+
+#### Ubuntu
+On Ubuntu you can add OpenJML to your PATH by adding the following line to your shell configuration file:
+
+1. Open your terminal
+
+2. Edit your shell configuration file:
+    - For bash: `nano ~/.bashrc` or `nano ~/.bash_profile`
+    - For zsh: `nano ~/.zshrc`
+
+3. Add the following line at the end of the file:
+   ```bash
+   export PATH="$PATH:/path/to/openjml/folder"
+   ```
+
+4. Reload your shell configuration:
+   ```bash
+   source ~/.bashrc  # or ~/.zshrc for zsh users
+   ```
+
+#### macOS
+For macOS, you can add OpenJML to your PATH by adding the following line to your shell configuration file:
+
+1. Open Terminal
+
+2. Edit your shell configuration file:
+    - For bash: `nano ~/.bash_profile`
+    - For zsh (default on macOS Catalina+): `nano ~/.zshrc`
+
+3. Add the following line at the end of the file:
+   ```bash
+   export PATH="$PATH:/path/to/openjml/folder"
+   ```
+
+4. Reload your shell configuration:
+   ```bash
+   source ~/.zshrc  # or ~/.bash_profile for bash users
+   ```
+
+### Verify installation
+After adding OpenJML to your PATH, verify that it is correctly installed by running the following commands:
+
+1. Check the version of Java:
+    ```bash
+        java -version
+    ```
+
+2. Check the version of OpenJML:
+    ```bash
+        openjml -version
+    ```
+### Running the Analysis
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/AngeloAntonioPrisco/ddditserver.git
+   ```
+   
+2. In the folder containing the project, run:
+   ```bash
+   nano jml-check.sh
+   ```
+   
+3. In the file write: 
+    ```bash
+    #!/bin/bash
+    set -e
+    
+    PROJECT_DIR=~/ddditserver
+    
+    echo "================================================"
+    echo " OpenJML Analysis Script"
+    echo "================================================"
+    
+    cd "$PROJECT_DIR"
+    
+    # --- Variables ---
+    LOMBOK_JAR=$(find ~/.m2 -name "lombok-*.jar" | grep -v sources | sort -V | tail -1)
+    SPRING_JAR=$(find ~/.m2 -name "spring-context-*.jar" | grep -v sources | tail -1)
+    SPRING_BEANS_JAR=$(find ~/.m2 -name "spring-beans-*.jar" | grep -v sources | tail -1)
+    SPRING_WEB_JAR=$(find ~/.m2 -name "spring-web-*.jar" | grep -v sources | tail -1)
+    SPRING_CORE_JAR=$(find ~/.m2 -name "spring-core-*.jar" | grep -v sources | tail -1)
+    COMMONS_LANG_JAR=$(find ~/.m2 -name "commons-lang3-*.jar" | grep -v sources | tail -1)
+    CLASSPATH_FILE=/tmp/cp.txt
+    SOURCES_FILE=/tmp/sources.txt
+    DELOMBOK_DIR="$PROJECT_DIR/delombok-src"
+    THREADS=$(nproc)  # Number of available CPU cores
+    
+    echo "[1/5] Building project..."
+    mvn clean install -DskipTests -q
+    echo "      OK"
+    
+    echo "[2/5] Delombok (entire src/main/java)..."
+    rm -rf "$DELOMBOK_DIR"
+    mkdir -p "$DELOMBOK_DIR"
+    
+    # Generate classpath once and reuse it
+    CLASSPATH=$(mvn dependency:build-classpath -q -DforceStdout)
+    
+    # Delombok the entire source tree so all dependencies are resolved correctly
+    java -jar "$LOMBOK_JAR" delombok src/main/java \
+      -d "$DELOMBOK_DIR" \
+      --classpath "$CLASSPATH"
+    
+    echo "      OK"
+    
+    echo "[3/5] Generating classpath..."
+    echo "$CLASSPATH" > "$CLASSPATH_FILE"
+    echo "      OK"
+    
+    echo "[4/5] Searching for files with JML annotations..."
+    # Only pass to OpenJML the files that actually contain JML specifications
+    grep -rl "/\*@" "$DELOMBOK_DIR" --include="*.java" > "$SOURCES_FILE"
+    COUNT=$(wc -l < "$SOURCES_FILE")
+    echo "      Found $COUNT files with JML specifications:"
+    cat "$SOURCES_FILE" | sed 's/^/        /'
+    
+    echo "[5/5] Running OpenJML (parallel on $THREADS threads)..."
+    echo "------------------------------------------------"
+    
+    # Split source file list into chunks, one per thread
+    split -n "l/$THREADS" "$SOURCES_FILE" /tmp/jml_chunk_
+    
+    # Launch one OpenJML process per chunk in background
+    PIDS=()
+    for chunk in /tmp/jml_chunk_*; do
+      # Skip empty chunks that split may produce
+      if [ -s "$chunk" ]; then
+        openjml -esc -nowarn \
+          -classpath "$(cat $CLASSPATH_FILE):$DELOMBOK_DIR:$PROJECT_DIR/target/classes:$LOMBOK_JAR:$SPRING_JAR:$SPRING_BEANS_JAR:$SPRING_WEB_JAR:$SPRING_CORE_JAR:$COMMONS_LANG_JAR" \
+          @"$chunk" &
+        PIDS+=($!)
+      fi
+    done
+    
+    # Wait for all background processes and collect exit codes
+    FAILED=0
+    for pid in "${PIDS[@]}"; do
+      wait "$pid" || FAILED=1
+    done
+    
+    # Clean up temporary chunk files
+    rm -f /tmp/jml_chunk_*
+    
+    echo "------------------------------------------------"
+    if [ $FAILED -ne 0 ]; then
+      echo " Analysis completed with verification errors."
+    else
+      echo " Analysis completed successfully."
+    fi
+    echo "================================================"
+    ```
+
+4. Update the permissions of the file.
+    ```bash
+   chmod +x jml-check.sh
+   ```
+
+5. Then run the file :
+
+   ```bash
+    ./jml-check.sh
+   ```
+
+*Note*: Since the entire project is built with **Spring** and **Lombok**, **OpenJML** has limited visibility into dependency injection and generated code. As a result, the analysis may take several minutes and will report a number of warnings (e.g. `NullField`, `ArithmeticOperationRange`, `CharSequence invariant violations`). These are known limitations of **OpenJML** when used with **Spring** and **Lombok**, and do not reflect actual specification errors.   
+
+
 ## 🧱 Built With
 
 - [Java](https://www.oracle.com/java/) – Programming language used for the server implementation.
